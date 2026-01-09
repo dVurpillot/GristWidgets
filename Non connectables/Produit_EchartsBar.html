@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>GRIST + ECharts Bar Chart Widget</title>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+
+  <!-- Built-in Themes -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/vintage.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/dark.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/macarons.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/infographic.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/shine.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/roma.js"></script>
+
+  <style>
+    body { display: flex; height: 100vh; margin: 0; font-family: sans-serif; }
+    #controls { width: 30%; padding: 10px; border-right: 1px solid #ccc; box-sizing: border-box; overflow-y: auto; }
+    #chart { width: 70%; height: 100%; }
+    label { display: block; margin-top: 10px; }
+    select, input { width: 100%; box-sizing: border-box; }
+    button {
+      margin-top: 15px;
+      padding: 8px 15px;
+      background: #000091;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1212ff;
+    }
+    #saveBtn {
+      background: #28a745;
+      margin-right: 5px;
+    }
+    #saveBtn:hover {
+      background: #218838;
+    }
+    #loadBtn {
+      background: #17a2b8;
+    }
+    #loadBtn:hover {
+      background: #138496;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 8px;
+      background: #f0f0f0;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .series-item {
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      background: #f9f9f9;
+    }
+    .series-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .series-header h5 {
+      margin: 0;
+    }
+    .remove-series-btn {
+      background: #dc3545;
+      padding: 4px 8px;
+      font-size: 12px;
+      margin: 0;
+    }
+    .remove-series-btn:hover {
+      background: #c82333;
+    }
+    .add-series-btn {
+      background: #007bff;
+      width: 100%;
+    }
+    .add-series-btn:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <!-- Left Panel: Controls -->
+  <div id="controls">
+    <h3>Bar Chart Settings</h3>
+    <label>Title: <input type="text" id="titleInput" value="My Bar Chart"></label>
+    
+    <label>Chart Orientation:
+      <select id="chartOrientationInput">
+        <option value="vertical">Vertical</option>
+        <option value="horizontal">Horizontal</option>
+      </select>
+    </label>
+    
+    <label>Stack Series: <input type="checkbox" id="stackInput"></label>
+    
+    <label>Column for Categories (X-axis): <input type="text" id="categoryColumn" placeholder="e.g. Month"></label>
+
+    <!-- Theme -->
+    <h4>Theme</h4>
+    <label>Select Theme:
+      <select id="themeInput">
+        <option value="">default</option>
+        <option value="vintage">vintage</option>
+        <option value="dark">dark</option>
+        <option value="macarons">macarons</option>
+        <option value="infographic">infographic</option>
+        <option value="shine">shine</option>
+        <option value="roma">roma</option>
+        <option value="DSFR">DSFR</option>
+      </select>
+    </label>
+
+    <!-- Legend -->
+    <h4>Legend Settings</h4>
+    <label>Show Legend: <input type="checkbox" id="legendShowInput" checked></label>
+    <label>Orient:
+      <select id="legendOrientInput">
+        <option value="horizontal">horizontal</option>
+        <option value="vertical">vertical</option>
+      </select>
+    </label>
+    <label>Position:
+      <select id="legendPositionInput">
+        <option value="top">top</option>
+        <option value="bottom">bottom</option>
+        <option value="left">left</option>
+        <option value="right">right</option>
+      </select>
+    </label>
+
+    <!-- Series Configuration -->
+    <h4>Series Configuration</h4>
+    <div id="seriesContainer"></div>
+    <button class="add-series-btn" id="addSeriesBtn">+ Add Series</button>
+
+    <!-- Grid Settings -->
+    <h4>Grid Settings</h4>
+    <label>Show Grid Lines: <input type="checkbox" id="gridShowInput" checked></label>
+    <label>Left Margin (%): <input type="number" id="gridLeftInput" value="10"></label>
+    <label>Right Margin (%): <input type="number" id="gridRightInput" value="10"></label>
+    <label>Top Margin (%): <input type="number" id="gridTopInput" value="15"></label>
+    <label>Bottom Margin (%): <input type="number" id="gridBottomInput" value="10"></label>
+
+    <!-- Label Settings -->
+    <h4>Label Settings</h4>
+    <label>Show Labels: <input type="checkbox" id="labelShowInput"></label>
+    <label>Label Position:
+      <select id="labelPositionInput">
+        <option value="top">top</option>
+        <option value="bottom">bottom</option>
+        <option value="left">left</option>
+        <option value="right">right</option>
+        <option value="inside">inside</option>
+        <option value="insideLeft">insideLeft</option>
+        <option value="insideRight">insideRight</option>
+        <option value="insideTop">insideTop</option>
+        <option value="insideBottom">insideBottom</option>
+      </select>
+    </label>
+
+    <h4>Save/Load Settings</h4>
+    <button id="saveBtn">Save Parameters</button>
+    <button id="loadBtn">Load Parameters</button>
+    <small style="display: block; margin-top: 5px; color: #666;">Parameters saved to 'Parameters' column in table 'Data3' (row 1)</small>
+
+    <button id="updateBtn">Update Chart</button>
+
+    <div class="status" id="status">
+      Waiting for data...
+    </div>
+  </div>
+  <div id="chart"></div>
+
+<script>
+    // ============================================================================
+    // CONFIGURATION: Update this table name when using the widget with another table
+    // ============================================================================
+    const TABLE_NAME = 'Data3';  // ← CHANGE THIS to your table name
+    // ============================================================================
+
+    // Register custom DSFR theme
+    echarts.registerTheme("DSFR", {
+      color: ['#2846bc', '#598fc9', '#00386a', '#008188', '#55c5cc', '#8b53c8', '#a78bcc', '#a7a7a7'],
+      backgroundColor: '#ffffff',
+      textStyle: { fontFamily: 'Marianne, Arial, sans-serif' },
+      title: { textStyle: { color: '#000091', fontWeight: 'bold' } },
+      legend: { textStyle: { color: '#161616' } }
+    });
+
+    let chart;
+    let gristData = [];
+    let seriesCount = 0;
+
+    grist.ready({
+      requiredAccess: 'full',
+      columns: []
+    });
+
+    // Update status message
+    function updateStatus(message) {
+      document.getElementById('status').textContent = message;
+    }
+
+    grist.onRecords(records => {
+      gristData = records;
+      updateStatus(`${records.length} records loaded`);
+      renderChart();
+    });
+
+    // Add a new series input group
+    function addSeries(seriesData = {}) {
+      seriesCount++;
+      const seriesId = seriesData.id || `series-${seriesCount}`;
+      const container = document.getElementById('seriesContainer');
+      
+      const seriesDiv = document.createElement('div');
+      seriesDiv.className = 'series-item';
+      seriesDiv.id = seriesId;
+      
+      seriesDiv.innerHTML = `
+        <div class="series-header">
+          <h5>Series ${seriesCount}</h5>
+          <button class="remove-series-btn" onclick="removeSeries('${seriesId}')">Remove</button>
+        </div>
+        <label>Series Name: <input type="text" class="series-name" value="${seriesData.name || 'Series ' + seriesCount}"></label>
+        <label>Value Column: <input type="text" class="series-value" placeholder="e.g. Sales" value="${seriesData.valueColumn || ''}"></label>
+        <label>Bar Color: <input type="color" class="series-color" value="${seriesData.color || '#5470c6'}"></label>
+        <label>Bar Width (%): <input type="number" class="series-barwidth" value="${seriesData.barWidth || '60'}" min="1" max="100"></label>
+      `;
+      
+      container.appendChild(seriesDiv);
+    }
+
+    // Remove a series
+    function removeSeries(seriesId) {
+      const element = document.getElementById(seriesId);
+      if (element) {
+        element.remove();
+        renderChart();
+      }
+    }
+
+    // Get all series configurations
+    function getSeriesConfigs() {
+      const seriesItems = document.querySelectorAll('.series-item');
+      const configs = [];
+      
+      seriesItems.forEach(item => {
+        configs.push({
+          id: item.id,
+          name: item.querySelector('.series-name').value,
+          valueColumn: item.querySelector('.series-value').value,
+          color: item.querySelector('.series-color').value,
+          barWidth: item.querySelector('.series-barwidth').value
+        });
+      });
+      
+      return configs;
+    }
+
+    function renderChart() {
+      const title = document.getElementById('titleInput').value;
+      const categoryCol = document.getElementById('categoryColumn').value;
+      const theme = document.getElementById('themeInput').value;
+      const orientation = document.getElementById('chartOrientationInput').value;
+      const isStacked = document.getElementById('stackInput').checked;
+      
+      const legendShow = document.getElementById('legendShowInput').checked;
+      const legendOrient = document.getElementById('legendOrientInput').value;
+      const legendPosition = document.getElementById('legendPositionInput').value;
+      
+      const gridShow = document.getElementById('gridShowInput').checked;
+      const gridLeft = document.getElementById('gridLeftInput').value + '%';
+      const gridRight = document.getElementById('gridRightInput').value + '%';
+      const gridTop = document.getElementById('gridTopInput').value + '%';
+      const gridBottom = document.getElementById('gridBottomInput').value + '%';
+      
+      const labelShow = document.getElementById('labelShowInput').checked;
+      const labelPosition = document.getElementById('labelPositionInput').value;
+
+      // Get categories from data
+      const categories = gristData.map(r => r[categoryCol]).filter(c => c !== undefined);
+      
+      // Get series configurations
+      const seriesConfigs = getSeriesConfigs();
+      
+      // Build series array
+      const series = seriesConfigs.map(config => {
+        const data = gristData.map(r => r[config.valueColumn]).filter(v => v !== undefined);
+        
+        return {
+          name: config.name,
+          type: 'bar',
+          data: data,
+          itemStyle: { color: config.color },
+          barWidth: config.barWidth + '%',
+          stack: isStacked ? 'total' : undefined,
+          label: {
+            show: labelShow,
+            position: labelPosition
+          }
+        };
+      });
+
+      // Configure axes based on orientation
+      let xAxis, yAxis;
+      if (orientation === 'vertical') {
+        xAxis = {
+          type: 'category',
+          data: categories,
+          axisLine: { show: gridShow },
+          axisTick: { show: gridShow }
+        };
+        yAxis = {
+          type: 'value',
+          splitLine: { show: gridShow }
+        };
+      } else {
+        xAxis = {
+          type: 'value',
+          splitLine: { show: gridShow }
+        };
+        yAxis = {
+          type: 'category',
+          data: categories,
+          axisLine: { show: gridShow },
+          axisTick: { show: gridShow }
+        };
+      }
+
+      const option = {
+        title: { text: title, left: 'center' },
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        legend: {
+          show: legendShow,
+          orient: legendOrient,
+          [legendPosition]: 10
+        },
+        grid: {
+          left: gridLeft,
+          right: gridRight,
+          top: gridTop,
+          bottom: gridBottom,
+          containLabel: true
+        },
+        xAxis: xAxis,
+        yAxis: yAxis,
+        series: series
+      };
+
+      // Dispose of existing chart instance safely
+      if (chart && typeof chart.dispose === 'function') {
+        try {
+          chart.dispose();
+        } catch (e) {
+          console.warn('Error disposing chart:', e);
+        }
+      }
+      
+      const chartContainer = document.getElementById('chart');
+      if (chartContainer) {
+        chart = echarts.init(chartContainer, theme || null);
+        chart.setOption(option);
+      }
+      
+      updateStatus(`Chart rendered with ${categories.length} categories and ${series.length} series`);
+    }
+
+    document.getElementById('updateBtn').addEventListener('click', renderChart);
+    document.getElementById('addSeriesBtn').addEventListener('click', () => addSeries());
+
+    // Save parameters to the Parameters column (first row)
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      try {
+        const params = {
+          titleInput: document.getElementById('titleInput').value,
+          chartOrientationInput: document.getElementById('chartOrientationInput').value,
+          stackInput: document.getElementById('stackInput').checked,
+          categoryColumn: document.getElementById('categoryColumn').value,
+          themeInput: document.getElementById('themeInput').value,
+          legendShowInput: document.getElementById('legendShowInput').checked,
+          legendOrientInput: document.getElementById('legendOrientInput').value,
+          legendPositionInput: document.getElementById('legendPositionInput').value,
+          gridShowInput: document.getElementById('gridShowInput').checked,
+          gridLeftInput: document.getElementById('gridLeftInput').value,
+          gridRightInput: document.getElementById('gridRightInput').value,
+          gridTopInput: document.getElementById('gridTopInput').value,
+          gridBottomInput: document.getElementById('gridBottomInput').value,
+          labelShowInput: document.getElementById('labelShowInput').checked,
+          labelPositionInput: document.getElementById('labelPositionInput').value,
+          series: getSeriesConfigs()
+        };
+        
+        const tableData = await grist.docApi.fetchTable(TABLE_NAME);
+        
+        if (tableData && tableData.id && tableData.id.length > 0) {
+          const firstRowId = tableData.id[0];
+          
+          await grist.docApi.applyUserActions([
+            ['UpdateRecord', TABLE_NAME, firstRowId, { Parameters: JSON.stringify(params) }]
+          ]);
+          updateStatus('Parameters saved successfully!');
+        } else {
+          updateStatus('Error: Table "' + TABLE_NAME + '" has no rows');
+        }
+      } catch (error) {
+        updateStatus('Error saving parameters: ' + error.message);
+        console.error('Error saving parameters:', error);
+      }
+    });
+
+    // Load parameters from the Parameters column (first row)
+    document.getElementById('loadBtn').addEventListener('click', async () => {
+      try {
+        const tableData = await grist.docApi.fetchTable(TABLE_NAME);
+        
+        if (tableData && tableData.id && tableData.id.length > 0 && tableData.Parameters && tableData.Parameters[0]) {
+          const paramsString = tableData.Parameters[0];
+          const params = JSON.parse(paramsString);
+          
+          document.getElementById('titleInput').value = params.titleInput || 'My Bar Chart';
+          document.getElementById('chartOrientationInput').value = params.chartOrientationInput || 'vertical';
+          document.getElementById('stackInput').checked = params.stackInput || false;
+          document.getElementById('categoryColumn').value = params.categoryColumn || '';
+          document.getElementById('themeInput').value = params.themeInput || '';
+          document.getElementById('legendShowInput').checked = params.legendShowInput !== undefined ? params.legendShowInput : true;
+          document.getElementById('legendOrientInput').value = params.legendOrientInput || 'horizontal';
+          document.getElementById('legendPositionInput').value = params.legendPositionInput || 'top';
+          document.getElementById('gridShowInput').checked = params.gridShowInput !== undefined ? params.gridShowInput : true;
+          document.getElementById('gridLeftInput').value = params.gridLeftInput || '10';
+          document.getElementById('gridRightInput').value = params.gridRightInput || '10';
+          document.getElementById('gridTopInput').value = params.gridTopInput || '15';
+          document.getElementById('gridBottomInput').value = params.gridBottomInput || '10';
+          document.getElementById('labelShowInput').checked = params.labelShowInput || false;
+          document.getElementById('labelPositionInput').value = params.labelPositionInput || 'top';
+          
+          // Clear and reload series
+          document.getElementById('seriesContainer').innerHTML = '';
+          seriesCount = 0;
+          if (params.series && params.series.length > 0) {
+            params.series.forEach(s => addSeries(s));
+          } else {
+            addSeries(); // Add at least one series
+          }
+          
+          updateStatus('Parameters loaded successfully!');
+          renderChart();
+        } else {
+          updateStatus('No saved parameters found in table "' + TABLE_NAME + '"');
+        }
+      } catch (error) {
+        updateStatus('Error loading parameters: ' + error.message);
+        console.error('Error loading parameters:', error);
+      }
+    });
+
+    // Auto-resize chart when window size changes
+    window.addEventListener('resize', () => {
+      if (chart) {
+        chart.resize();
+      }
+    });
+
+    // Initialize with one series
+    addSeries();
+</script>
+</body>
+</html>

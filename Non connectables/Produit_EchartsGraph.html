@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>GRIST + ECharts Force Graph Widget</title>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+
+  <!-- Built-in Themes -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/vintage.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/dark.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/macarons.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/infographic.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/shine.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/roma.js"></script>
+
+  <style>
+    body { 
+      display: flex; 
+      height: 100vh; 
+      margin: 0; 
+      font-family: sans-serif; 
+    }
+    #controls { 
+      width: 30%; 
+      padding: 10px; 
+      border-right: 1px solid #ccc; 
+      box-sizing: border-box; 
+      overflow-y: auto; 
+    }
+    #chart { 
+      width: 70%; 
+      height: 100%; 
+    }
+    label { 
+      display: block; 
+      margin-top: 10px; 
+    }
+    input[type="text"], input[type="number"], select { 
+      width: 100%; 
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 15px;
+      padding: 8px 15px;
+      background: #000091;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1212ff;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 8px;
+      background: #f0f0f0;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    h4 {
+      margin-top: 15px;
+      margin-bottom: 5px;
+      color: #000091;
+    }
+  </style>
+</head>
+<body>
+  <!-- Left Panel: Controls -->
+  <div id="controls">
+    <h3>Force Graph Settings</h3>
+    
+    <label>Chart Title: 
+      <input type="text" id="titleInput" value="Force Graph">
+    </label>
+
+    <h4>Theme</h4>
+    <label>Select Theme:
+      <select id="themeInput">
+        <option value="">default</option>
+        <option value="vintage">vintage</option>
+        <option value="dark">dark</option>
+        <option value="macarons">macarons</option>
+        <option value="infographic">infographic</option>
+        <option value="shine">shine</option>
+        <option value="roma">roma</option>
+        <option value="DSFR">DSFR</option>
+      </select>
+    </label>
+
+    <h4>Data Mapping</h4>
+    <label>Source Column (in Lien table): 
+      <input type="text" id="sourceColumn" value="Source">
+    </label>
+    <label>Target Column (in Lien table): 
+      <input type="text" id="targetColumn" value="Target">
+    </label>
+    <label>Link Value Column (in Lien table): 
+      <input type="text" id="linkValueColumn" value="Value">
+    </label>
+    <label>Name Column (in Noeud table): 
+      <input type="text" id="nameColumn" value="Name">
+    </label>
+    <label>Node Value Column (in Noeud table): 
+      <input type="text" id="nodeValueColumn" value="Value">
+    </label>
+    <label>Category Column (in Noeud table): 
+      <input type="text" id="categoryColumn" value="Category">
+    </label>
+    <label>Color Column (in Noeud table): 
+      <input type="text" id="colorColumn" value="Color">
+    </label>
+
+    <h4>Graph Layout</h4>
+    <label>Layout Type:
+      <select id="layoutInput">
+        <option value="force">Force</option>
+        <option value="circular">Circular</option>
+        <option value="none">None (Fixed)</option>
+      </select>
+    </label>
+
+    <h4>Force Layout Settings</h4>
+    <label>Repulsion : 
+      <input type="number" id="repulsionInput" value="50" min="0" step="10">
+    </label>
+    <small style="color: #666;">Higher = nodes push away more</small>
+    
+    <label>Gravity : 
+      <input type="number" id="gravityInput" value="0.1" min="0" max="1" step="0.01">
+    </label>
+    <small style="color: #666;">Higher = stronger pull to center</small>
+    
+    <label>Edge Length: 
+      <input type="number" id="edgeLengthInput" value="30" min="1" step="5">
+    </label>
+    <small style="color: #666;">Default distance between connected nodes</small>
+    
+    <label>Friction: 
+      <input type="number" id="frictionInput" value="0.6" min="0" max="1" step="0.1">
+    </label>
+    <small style="color: #666;">Speed damping (0=no damping, 1=full stop)</small>
+    
+    <label>Layout Animation: 
+      <input type="checkbox" id="layoutAnimationInput" checked>
+    </label>
+
+    <h4>Graph Interaction</h4>
+    <label>Enable Zoom: 
+      <input type="checkbox" id="zoomInput" checked>
+    </label>
+    <label>Initial Zoom Level: 
+      <input type="number" id="initialZoomInput" value="1" min="0.1" max="5" step="0.1">
+    </label>
+    <label>Draggable Nodes: 
+      <input type="checkbox" id="draggableInput" checked>
+    </label>
+    <label>Focus on Hover:
+      <select id="focusInput">
+        <option value="adjacency">Adjacency</option>
+        <option value="none">None</option>
+        <option value="self">Self</option>
+      </select>
+    </label>
+
+    <h4>Node Style</h4>
+    <label>Node Size (Symbol Size): 
+      <input type="number" id="symbolSizeInput" value="10" min="1" step="1">
+    </label>
+    <label>Node Symbol:
+      <select id="symbolInput">
+        <option value="circle">Circle</option>
+        <option value="rect">Rectangle</option>
+        <option value="roundRect">Rounded Rect</option>
+        <option value="triangle">Triangle</option>
+        <option value="diamond">Diamond</option>
+        <option value="pin">Pin</option>
+        <option value="arrow">Arrow</option>
+      </select>
+    </label>
+    <label>Use Node Value for Size: 
+      <input type="checkbox" id="useValueForSizeInput">
+    </label>
+    <label>Use Color from Noeud Table: 
+      <input type="checkbox" id="useCustomColorInput" checked>
+    </label>
+
+    <h4>Node Label Settings</h4>
+    <label>Show Node Labels: 
+      <input type="checkbox" id="labelShowInput" checked>
+    </label>
+    <label>Label Position:
+      <select id="labelPositionInput">
+        <option value="right">right</option>
+        <option value="left">left</option>
+        <option value="top">top</option>
+        <option value="bottom">bottom</option>
+        <option value="inside">inside</option>
+      </select>
+    </label>
+    <label>Label Font Size (px): 
+      <input type="number" id="labelFontSizeInput" value="12" min="1">
+    </label>
+
+    <h4>Link Style Settings</h4>
+    <label>Link Color:
+      <select id="linkColorInput">
+        <option value="source">Source Color</option>
+        <option value="target">Target Color</option>
+        <option value="#aaa">#aaa (Gray)</option>
+        <option value="#999">#999 (Darker Gray)</option>
+      </select>
+    </label>
+    <label>Link Width: 
+      <input type="number" id="linkWidthInput" value="1" min="0.5" step="0.5">
+    </label>
+    <label>Link Opacity (0-1): 
+      <input type="number" id="linkOpacityInput" value="0.5" min="0" max="1" step="0.1">
+    </label>
+    <label>Link Curveness (0-1): 
+      <input type="number" id="linkCurvenessInput" value="0" min="0" max="1" step="0.1">
+    </label>
+    <small style="color: #666;">0 = straight lines, higher = more curved</small>
+    
+    <label>Show Link Labels: 
+      <input type="checkbox" id="edgeLabelShowInput">
+    </label>
+
+    <h4>Categories</h4>
+    <label>Show Category Legend: 
+      <input type="checkbox" id="legendShowInput" checked>
+    </label>
+
+    <h4>Save/Load Settings</h4>
+    <button id="saveBtn" style="background: #28a745; margin-right: 5px;">Save Parameters</button>
+    <button id="loadBtn" style="background: #17a2b8;">Load Parameters</button>
+    <small style="display: block; margin-top: 5px; color: #666;">Parameters saved to 'Parameters' column in Lien table (row 1)</small>
+
+    <button id="updateBtn">Update Chart</button>
+
+    <div class="status" id="status">
+      Waiting for data...
+    </div>
+  </div>
+
+  <!-- Right Panel: Chart -->
+  <div id="chart"></div>
+  
+  <script>
+    // Register custom DSFR theme
+    echarts.registerTheme("DSFR", {
+      color: ['#2846bc', '#598fc9', '#00386a', '#008188', '#55c5cc', '#8b53c8', '#a78bcc', '#a7a7a7'],
+      backgroundColor: '#ffffff',
+      textStyle: { fontFamily: 'Marianne, Arial, sans-serif' },
+      title: { textStyle: { color: '#000091', fontWeight: 'bold' } },
+      legend: { textStyle: { color: '#161616' } }
+    });
+
+    let chart;
+    let lienTableData = [];
+    let noeudTableData = [];
+    
+    // Initialize Grist
+    grist.ready({
+      requiredAccess: 'full',
+      columns: []
+    });
+
+    // Update status message
+    function updateStatus(message) {
+      document.getElementById('status').textContent = message;
+    }
+
+    // Listen for records from the Lien table (the table this widget is attached to)
+    grist.onRecords(records => {
+      lienTableData = records;
+      updateStatus(`Lien table: ${records.length} records loaded`);
+      fetchNoeudTable();
+    });
+
+    // Fetch data from the Noeud table
+    async function fetchNoeudTable() {
+      try {
+        const noeudRecords = await grist.docApi.fetchTable('Noeud');
+        
+        console.log('Noeud table raw data:', noeudRecords);
+        
+        if (noeudRecords && noeudRecords.id && noeudRecords.id.length > 0) {
+          const numRecords = noeudRecords.id.length;
+          noeudTableData = [];
+          
+          for (let i = 0; i < numRecords; i++) {
+            const record = { id: noeudRecords.id[i] };
+            for (let colName in noeudRecords) {
+              if (colName !== 'id') {
+                record[colName] = noeudRecords[colName][i];
+              }
+            }
+            noeudTableData.push(record);
+          }
+          
+          console.log('Processed Noeud table data:', noeudTableData);
+          updateStatus(`Lien: ${lienTableData.length} records, Noeud: ${noeudTableData.length} records`);
+          renderChart();
+        } else {
+          updateStatus('Error: Noeud table has no data');
+          console.log('Noeud table structure:', noeudRecords);
+        }
+      } catch (error) {
+        updateStatus('Error fetching Noeud table: ' + error.message);
+        console.error('Error fetching Noeud table:', error);
+      }
+    }
+
+    function renderChart() {
+      const title = document.getElementById('titleInput').value;
+      const sourceCol = document.getElementById('sourceColumn').value;
+      const targetCol = document.getElementById('targetColumn').value;
+      const linkValueCol = document.getElementById('linkValueColumn').value;
+      const nameCol = document.getElementById('nameColumn').value;
+      const nodeValueCol = document.getElementById('nodeValueColumn').value;
+      const categoryCol = document.getElementById('categoryColumn').value;
+      const colorCol = document.getElementById('colorColumn').value;
+      const theme = document.getElementById('themeInput').value;
+      
+      // Layout settings
+      const layout = document.getElementById('layoutInput').value;
+      const repulsion = parseInt(document.getElementById('repulsionInput').value, 10);
+      const gravity = parseFloat(document.getElementById('gravityInput').value);
+      const edgeLength = parseInt(document.getElementById('edgeLengthInput').value, 10);
+      const friction = parseFloat(document.getElementById('frictionInput').value);
+      const layoutAnimation = document.getElementById('layoutAnimationInput').checked;
+      
+      // Interaction settings
+      const zoomEnabled = document.getElementById('zoomInput').checked;
+      const initialZoom = parseFloat(document.getElementById('initialZoomInput').value);
+      const draggable = document.getElementById('draggableInput').checked;
+      const focus = document.getElementById('focusInput').value;
+      
+      // Node style settings
+      const symbolSize = parseInt(document.getElementById('symbolSizeInput').value, 10);
+      const symbol = document.getElementById('symbolInput').value;
+      const useValueForSize = document.getElementById('useValueForSizeInput').checked;
+      const useCustomColor = document.getElementById('useCustomColorInput').checked;
+      
+      // Label settings
+      const labelShow = document.getElementById('labelShowInput').checked;
+      const labelPosition = document.getElementById('labelPositionInput').value;
+      const labelFontSize = parseInt(document.getElementById('labelFontSizeInput').value, 10);
+      
+      // Link style settings
+      const linkColor = document.getElementById('linkColorInput').value;
+      const linkWidth = parseFloat(document.getElementById('linkWidthInput').value);
+      const linkOpacity = parseFloat(document.getElementById('linkOpacityInput').value);
+      const linkCurveness = parseFloat(document.getElementById('linkCurvenessInput').value);
+      const edgeLabelShow = document.getElementById('edgeLabelShowInput').checked;
+      
+      // Legend settings
+      const legendShow = document.getElementById('legendShowInput').checked;
+
+      // Build categories from Noeud table
+      const categoriesSet = new Set();
+      noeudTableData.forEach(r => {
+        if (r[categoryCol]) {
+          categoriesSet.add(r[categoryCol]);
+        }
+      });
+      const categories = Array.from(categoriesSet).map(cat => ({ name: cat }));
+
+      console.log('Categories:', categories);
+
+      // Build nodes data from Noeud table
+      const nodes = noeudTableData
+        .map(r => {
+          const node = {
+            name: String(r[nameCol]),
+            value: parseFloat(r[nodeValueCol]) || 0,
+            category: r[categoryCol] ? categories.findIndex(c => c.name === r[categoryCol]) : undefined
+          };
+          
+          // Apply symbol size
+          if (useValueForSize && node.value > 0) {
+            node.symbolSize = Math.sqrt(node.value) * 2 + symbolSize;
+          } else {
+            node.symbolSize = symbolSize;
+          }
+          
+          // Apply custom color if enabled
+          if (useCustomColor && r[colorCol]) {
+            node.itemStyle = {
+              color: r[colorCol]
+            };
+          }
+          
+          return node;
+        })
+        .filter(d => d.name !== undefined && d.name !== 'undefined' && d.name !== '');
+
+      console.log('Nodes:', nodes);
+
+      // Build links data from Lien table
+      const links = lienTableData
+        .map(r => ({
+          source: String(r[sourceCol]),
+          target: String(r[targetCol]),
+          value: parseFloat(r[linkValueCol]) || 1
+        }))
+        .filter(d => 
+          d.source !== undefined && d.source !== 'undefined' && d.source !== '' &&
+          d.target !== undefined && d.target !== 'undefined' && d.target !== ''
+        );
+
+      console.log('Links:', links);
+
+      if (nodes.length === 0) {
+        updateStatus('Error: No valid nodes found');
+        return;
+      }
+
+      if (links.length === 0) {
+        updateStatus('Error: No valid links found');
+        return;
+      }
+
+      const option = {
+        title: {
+          text: title,
+          left: 'center',
+          textStyle: {
+            fontSize: 18,
+            fontWeight: 'bold'
+          }
+        },
+        tooltip: {
+          trigger: 'item',
+          formatter: function(params) {
+            if (params.dataType === 'edge') {
+              return params.data.source + ' → ' + params.data.target + '<br/>Value: ' + params.data.value;
+            } else {
+              return params.data.name + '<br/>Value: ' + params.data.value;
+            }
+          }
+        },
+        legend: categories.length > 0 && legendShow ? {
+          data: categories.map(c => c.name),
+          orient: 'vertical',
+          left: 'left',
+          top: 'middle'
+        } : undefined,
+        series: [{
+          type: 'graph',
+          layout: layout,
+          data: nodes,
+          links: links,
+          categories: categories.length > 0 ? categories : undefined,
+          roam: zoomEnabled ? 'scale' : false,
+          zoom: initialZoom,
+          draggable: draggable,
+          symbol: symbol,
+          symbolSize: symbolSize,
+          label: {
+            show: labelShow,
+            position: labelPosition,
+            fontSize: labelFontSize,
+            formatter: '{b}'
+          },
+          edgeLabel: {
+            show: edgeLabelShow,
+            fontSize: 10,
+            formatter: '{c}'
+          },
+          lineStyle: {
+            color: linkColor,
+            width: linkWidth,
+            opacity: linkOpacity,
+            curveness: linkCurveness
+          },
+          emphasis: {
+            focus: focus,
+            lineStyle: {
+              width: linkWidth * 2
+            }
+          },
+          force: layout === 'force' ? {
+            repulsion: repulsion,
+            gravity: gravity,
+            edgeLength: edgeLength,
+            friction: friction,
+            layoutAnimation: layoutAnimation
+          } : undefined
+        }]
+      };
+
+      if (chart) chart.dispose();
+      chart = echarts.init(document.getElementById('chart'), theme || null);
+      chart.setOption(option);
+      
+      updateStatus(`Chart rendered with ${nodes.length} nodes and ${links.length} links`);
+    }
+
+    document.getElementById('updateBtn').addEventListener('click', renderChart);
+
+    // Save parameters to the Parameters column in Lien table (first row)
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      try {
+        const params = {
+          titleInput: document.getElementById('titleInput').value,
+          themeInput: document.getElementById('themeInput').value,
+          sourceColumn: document.getElementById('sourceColumn').value,
+          targetColumn: document.getElementById('targetColumn').value,
+          linkValueColumn: document.getElementById('linkValueColumn').value,
+          nameColumn: document.getElementById('nameColumn').value,
+          nodeValueColumn: document.getElementById('nodeValueColumn').value,
+          categoryColumn: document.getElementById('categoryColumn').value,
+          colorColumn: document.getElementById('colorColumn').value,
+          layoutInput: document.getElementById('layoutInput').value,
+          repulsionInput: document.getElementById('repulsionInput').value,
+          gravityInput: document.getElementById('gravityInput').value,
+          edgeLengthInput: document.getElementById('edgeLengthInput').value,
+          frictionInput: document.getElementById('frictionInput').value,
+          layoutAnimationInput: document.getElementById('layoutAnimationInput').checked,
+          zoomInput: document.getElementById('zoomInput').checked,
+          initialZoomInput: document.getElementById('initialZoomInput').value,
+          draggableInput: document.getElementById('draggableInput').checked,
+          focusInput: document.getElementById('focusInput').value,
+          symbolSizeInput: document.getElementById('symbolSizeInput').value,
+          symbolInput: document.getElementById('symbolInput').value,
+          useValueForSizeInput: document.getElementById('useValueForSizeInput').checked,
+          useCustomColorInput: document.getElementById('useCustomColorInput').checked,
+          labelShowInput: document.getElementById('labelShowInput').checked,
+          labelPositionInput: document.getElementById('labelPositionInput').value,
+          labelFontSizeInput: document.getElementById('labelFontSizeInput').value,
+          linkColorInput: document.getElementById('linkColorInput').value,
+          linkWidthInput: document.getElementById('linkWidthInput').value,
+          linkOpacityInput: document.getElementById('linkOpacityInput').value,
+          linkCurvenessInput: document.getElementById('linkCurvenessInput').value,
+          edgeLabelShowInput: document.getElementById('edgeLabelShowInput').checked,
+          legendShowInput: document.getElementById('legendShowInput').checked
+        };
+        
+        if (lienTableData.length > 0) {
+          const firstRowId = lienTableData[0].id;
+          await grist.docApi.applyUserActions([
+            ['UpdateRecord', 'Lien', firstRowId, { Parameters: JSON.stringify(params) }]
+          ]);
+          updateStatus('Parameters saved successfully!');
+        } else {
+          updateStatus('Error: No rows in Lien table to save parameters');
+        }
+      } catch (error) {
+        updateStatus('Error saving parameters: ' + error.message);
+        console.error('Error saving parameters:', error);
+      }
+    });
+
+    // Load parameters from the Parameters column in Lien table (first row)
+    document.getElementById('loadBtn').addEventListener('click', async () => {
+      try {
+        const lienRecords = await grist.docApi.fetchTable('Lien');
+        
+        console.log('Lien table raw data:', lienRecords);
+        
+        if (lienRecords && lienRecords.id && lienRecords.id.length > 0 && lienRecords.Parameters && lienRecords.Parameters[0]) {
+          const paramsString = lienRecords.Parameters[0];
+          console.log('Parameters string:', paramsString);
+          
+          const params = JSON.parse(paramsString);
+          
+          // Restore all parameters
+          document.getElementById('titleInput').value = params.titleInput || 'Force Graph';
+          document.getElementById('themeInput').value = params.themeInput || '';
+          document.getElementById('sourceColumn').value = params.sourceColumn || 'Source';
+          document.getElementById('targetColumn').value = params.targetColumn || 'Target';
+          document.getElementById('linkValueColumn').value = params.linkValueColumn || 'Value';
+          document.getElementById('nameColumn').value = params.nameColumn || 'Name';
+          document.getElementById('nodeValueColumn').value = params.nodeValueColumn || 'Value';
+          document.getElementById('categoryColumn').value = params.categoryColumn || 'Category';
+          document.getElementById('colorColumn').value = params.colorColumn || 'Color';
+          document.getElementById('layoutInput').value = params.layoutInput || 'force';
+          document.getElementById('repulsionInput').value = params.repulsionInput || '50';
+          document.getElementById('gravityInput').value = params.gravityInput || '0.1';
+          document.getElementById('edgeLengthInput').value = params.edgeLengthInput || '30';
+          document.getElementById('frictionInput').value = params.frictionInput || '0.6';
+          document.getElementById('layoutAnimationInput').checked = params.layoutAnimationInput !== undefined ? params.layoutAnimationInput : true;
+          document.getElementById('zoomInput').checked = params.zoomInput !== undefined ? params.zoomInput : true;
+          document.getElementById('initialZoomInput').value = params.initialZoomInput || '1';
+          document.getElementById('draggableInput').checked = params.draggableInput !== undefined ? params.draggableInput : true;
+          document.getElementById('focusInput').value = params.focusInput || 'adjacency';
+          document.getElementById('symbolSizeInput').value = params.symbolSizeInput || '10';
+          document.getElementById('symbolInput').value = params.symbolInput || 'circle';
+          document.getElementById('useValueForSizeInput').checked = params.useValueForSizeInput || false;
+          document.getElementById('useCustomColorInput').checked = params.useCustomColorInput !== undefined ? params.useCustomColorInput : true;
+          document.getElementById('labelShowInput').checked = params.labelShowInput !== undefined ? params.labelShowInput : true;
+          document.getElementById('labelPositionInput').value = params.labelPositionInput || 'right';
+          document.getElementById('labelFontSizeInput').value = params.labelFontSizeInput || '12';
+          document.getElementById('linkColorInput').value = params.linkColorInput || 'source';
+          document.getElementById('linkWidthInput').value = params.linkWidthInput || '1';
+          document.getElementById('linkOpacityInput').value = params.linkOpacityInput || '0.5';
+          document.getElementById('linkCurvenessInput').value = params.linkCurvenessInput || '0';
+          document.getElementById('edgeLabelShowInput').checked = params.edgeLabelShowInput || false;
+          document.getElementById('legendShowInput').checked = params.legendShowInput !== undefined ? params.legendShowInput : true;
+          
+          updateStatus('Parameters loaded successfully!');
+          renderChart();
+        } else {
+          updateStatus('No saved parameters found in Lien table');
+          console.log('Parameters column data:', lienRecords.Parameters);
+        }
+      } catch (error) {
+        updateStatus('Error loading parameters: ' + error.message);
+        console.error('Error loading parameters:', error);
+      }
+    });
+
+    // Auto-resize chart when window size changes
+    window.addEventListener('resize', () => {
+      if (chart) {
+        chart.resize();
+      }
+    });
+  </script>
+  
+</body>
+</html>

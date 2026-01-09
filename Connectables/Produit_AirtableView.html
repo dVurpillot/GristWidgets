@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airtable</title>
+    <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-size: 13px;
+            color: #262633;
+            background: #f7f7f7;
+            overflow: hidden;
+        }
+
+        #container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: relative; /* Context for absolute positioning */
+        }
+
+        #controls {
+            background: white;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e8e8e8;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            z-index: 100; /* Ensure controls stay above content */
+        }
+
+        .control-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #929299;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        label {
+            font-weight: 500;
+            color: #262633;
+            white-space: nowrap;
+            font-size: 12px;
+        }
+
+        select {
+            padding: 4px 8px;
+            border: 1px solid #d9d9d9;
+            border-radius: 3px;
+            background: white;
+            font-size: 13px;
+            min-width: 120px;
+        }
+
+        input[type="text"] {
+            padding: 4px 8px;
+            border: 1px solid #d9d9d9;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+
+        button {
+            padding: 4px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 3px;
+            background: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.15s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        button:hover {
+            background: #f7f7f7;
+        }
+
+        button.active {
+            background: #2389D8;
+            color: white;
+            border-color: #2389D8;
+        }
+
+        /* Filter Button Style */
+        .filter-btn {
+            padding: 4px 8px;
+            color: #929299;
+        }
+        .filter-btn:hover {
+            color: #262633;
+        }
+        .filter-btn.has-filter {
+            color: #2389D8;
+            border-color: #2389D8;
+            background: #e8f4fd;
+        }
+
+        /* Table Layout */
+        #contentWrapper {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+            background: white;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: max-content; 
+        }
+
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+            border-right: 1px solid #f0f0f0;
+            white-space: nowrap; 
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background: white;
+            font-weight: 600;
+            color: #262633;
+            border-bottom: 2px solid #e8e8e8;
+            z-index: 10;
+        }
+
+        /* Group Headers */
+        tr.group-header {
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+        
+        tr.group-header:hover {
+            background-color: #ebebeb !important;
+        }
+
+        tr.group-header td {
+            border-right: none;
+        }
+
+        tr.group-header.level-0 { background: #e8f4fd; }
+        tr.group-header.level-0 td { border-left: 3px solid #2389D8; }
+        
+        tr.group-header.level-1 { background: #f0f0f0; }
+        tr.group-header.level-1 td { border-left: 3px solid #16B378; }
+
+        tr.group-header.level-2 { background: #f9f9f9; }
+        tr.group-header.level-2 td { border-left: 3px solid #FFA500; }
+
+        /* Stats in Group Header */
+        .group-header-content {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .toggle-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+        .toggle-icon.collapsed { transform: rotate(-90deg); }
+
+        .group-stats {
+            display: flex;
+            gap: 16px;
+            margin-left: auto;
+            font-weight: normal;
+        }
+        
+        .group-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .group-stat-value { font-weight: 600; color: #333; }
+
+        /* Record Rows */
+        tr.record-row:hover { background: #f7f7f7; }
+
+        .cell-content {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        td.numeric { text-align: right; }
+
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            margin: 1px;
+        }
+
+        .tag.pink { background: #ffebf2; color: #d81b60; }
+        .tag.blue { background: #e3f2fd; color: #1976d2; }
+        .tag.green { background: #e8f5e9; color: #388e3c; }
+        .tag.orange { background: #fff3e0; color: #f57c00; }
+        .tag.purple { background: #f3e5f5; color: #7b1fa2; }
+        .tag.gray { background: #f5f5f5; color: #616161; }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            width: 400px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-body {
+            overflow-y: auto;
+            flex: 1;
+            margin: 16px 0;
+            border: 1px solid #eee;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        
+        /* Draggable List Items */
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            background: white;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: grab;
+        }
+        .checkbox-item:hover { background: #f9f9f9; }
+        .checkbox-item.dragging { opacity: 0.5; background: #e8f4fd; }
+        .checkbox-item.over { border-top: 2px solid #2389D8; }
+        
+        .drag-handle {
+            color: #bbb;
+            margin-right: 8px;
+            cursor: grab;
+            user-select: none;
+            font-size: 16px;
+        }
+        
+        .checkbox-item input { margin-right: 12px; cursor: pointer; }
+        
+        .reorder-controls {
+            margin-left: auto;
+            display: flex;
+            gap: 2px;
+        }
+        .reorder-btn {
+            padding: 2px;
+            background: none;
+            border: 1px solid transparent;
+            color: #999;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .reorder-btn:hover { background: #eee; color: #333; }
+
+        /* Param List Items */
+        .param-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        .param-item:hover {
+            background: #f7f7f7;
+        }
+        .param-name { font-weight: 500; }
+		
+        /* --- AIDE / INSTRUCTIONS --- */
+		#instructions {
+            position: fixed;
+            /* Top Left Position (below controls approx) */
+            top: 130px; 
+            left: 20px;
+            
+            background: #fffbea;
+            border: 1px solid #f5d97d;
+            border-radius: 8px;
+            padding: 12px 16px;
+            max-width: 350px;
+            font-size: 13px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 2000;
+            /* Cursor for dragging */
+            cursor: move;
+        }
+        #instructions h4 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #262633;
+            /* Prevent text selection while dragging */
+            user-select: none;
+        }
+        #instructions code {
+            background: #f5d97d;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        #instructions ul {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+        #instructions li {
+            margin: 4px 0;
+            line-height: 1.4;
+        }
+        #instructions p {
+            margin: 6px 0;
+            line-height: 1.4;
+        }
+        /* Content inside that isn't the header shouldn't trigger drag easily */
+        #instructions p, #instructions ul, #instructions li {
+            cursor: default;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #666;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            line-height: 1;
+        }
+        .close-btn:hover {
+            color: #000;
+        }
+
+        .loading, .empty-state { padding: 40px; text-align: center; color: #929299; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="controls">
+            <!-- Params Section -->
+            <div class="control-section">
+                <div class="control-section-title">Vues prédéfinies</div>
+                <div class="control-row">
+                    <button id="saveViewBtn">💾 Sauver</button>
+                    <button id="loadViewBtn">📂 Charger</button>
+                    <!-- Help Toggle Button -->
+                    <button id="toggleHelpBtn" style="min-width: 30px;" title="Afficher/Masquer l'aide">❓ Aide</button>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="control-section-title">Grouper et filtrer</div>
+                <div class="control-row">
+                    <!-- Group 1 -->
+                    <div class="control-group">
+                        <label>Groupe 1 :</label>
+                        <select id="group1"><option value="">Vide</option></select>
+                        <button class="filter-btn" id="filterBtn1" title="Filtrer">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                    <!-- Group 2 -->
+                    <div class="control-group">
+                        <label>Groupe 2 :</label>
+                        <select id="group2"><option value="">Vide</option></select>
+                        <button class="filter-btn" id="filterBtn2" title="Filtrer">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                    <!-- Group 3 -->
+                    <div class="control-group">
+                        <label>Groupe 3 :</label>
+                        <select id="group3"><option value="">Vide</option></select>
+                        <button class="filter-btn" id="filterBtn3" title="Filtrer">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="control-section-title">Tri et affichage</div>
+                <div class="control-row">
+                    <div class="control-group">
+                        <select id="sortColumn"><option value="">Tri: Aucun</option></select>
+                        <select id="sortOrder">
+                            <option value="asc">Asc</option>
+                            <option value="desc">Desc</option>
+                        </select>
+                    </div>
+                    <button id="selectColumnsBtn">Colonnes</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="contentWrapper">
+            <table id="mainTable">
+                <thead>
+                    <tr id="tableHeaderRow"></tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="100" class="loading">Chargement des données...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- General Modal (Used for Columns, Filters, Save, Load) -->
+        <div id="genericModal" class="modal-overlay">
+            <div class="modal-content">
+                <h3 id="modalTitle" style="margin-bottom: 8px;">Title</h3>
+                <div style="font-size: 11px; color: #666; margin-bottom: 8px;" id="modalSubtitle"></div>
+                
+                <div id="modalControls" style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <!-- Controls injected dynamically -->
+                </div>
+
+                <div id="modalList" class="modal-body"></div>
+                
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button id="modalCancel">Annuler</button>
+                    <button id="modalSave" class="active">Appliquer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aide / Instructions (Draggable) -->
+    <div id="instructions">
+        <button class="close-btn" id="closeHelpBtn">×</button>
+        <h4 id="instructionsHeader">💡 Utilisation</h4>
+		<p><strong>Explication :</strong></p>
+		<p>Le widget permet de créer des vues groupées à la manière de Airtable.</p>
+        <p><strong>Groupement :</strong></p>
+        <ul>
+            <li>Vous pouvez charger des vue prédéfinies.</li>
+            <li>Vous pouvez définir jusqu'à trois niveaux de regroupement fliltrables.</li>
+            <li>Vous pouvez trier les données.</li>
+        </ul>
+        <p><strong>Filtres :</strong></p>
+        <ul>
+            <li>Cliquez sur l'icône <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg> à côté d'un groupe</li>
+            <li>Décochez les valeurs à masquer et déplacez les valeurs pour les réorganiser.</li>
+        </ul>
+        <p><strong>Sauvegarde :</strong></p>
+        <ul>
+            <li>La sauvegarde de paramètres personnalisés est pour l'instant désactivée, il y a seulement des vues prédéfinies.</li>
+        </ul>
+    </div>
+
+    <script>
+        let allRecords = [];
+        let allColumns = [];
+        let displayedColumns = [];
+        let expandedGroups = new Set();
+        let filterState = {}; // Format: { "ColName": Set(["Val1"]) }
+        let currentModalContext = null;
+        let currentFilterColumn = null;
+        let dragSrcEl = null; // For DnD
+        let currentTableId = 'unknown';
+
+        // Initialize GRIST API with full access to read AirParam
+        grist.ready({ requiredAccess: 'full' });
+
+        grist.onRecords((records, mappings) => {
+            allRecords = records;
+            
+            // Attempt to get tableId from Grist API if available
+            try {
+                grist.getTable().getTableId().then(tid => {
+                    if(tid) currentTableId = tid;
+                });
+            } catch(e) { console.log('Could not fetch Table ID', e); }
+
+            if (records.length > 0) {
+                // Initialize columns if first load
+                const newCols = Object.keys(records[0]).filter(key => key !== 'id');
+                
+                if (allColumns.length === 0 || JSON.stringify(newCols) !== JSON.stringify(allColumns)) {
+                    // Keep a stable alphabetical order by default
+                    allColumns = [...newCols].sort((a,b) => a.localeCompare(b, 'fr-FR', {sensitivity:'base'}));
+                    // Reset displayed columns if they are empty
+                    if (displayedColumns.length === 0) displayedColumns = [...allColumns];
+                    populateSelectors();
+                }
+            }
+            
+            renderTable();
+            updateFilterButtonsUI();
+        });
+
+        function populateSelectors() {
+            const selects = ['group1', 'group2', 'group3', 'sortColumn'];
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                const currentVal = select.value;
+                select.innerHTML = selectId.includes('sort') ? '<option value="">Tri: Aucun</option>' : '<option value="">Aucun</option>';
+                
+                // Show columns in ascending order
+                const sortedCols = [...allColumns].sort((a,b) => a.localeCompare(b, 'fr-FR', {sensitivity:'base'}));
+
+                sortedCols.forEach(col => {
+                    const option = document.createElement('option');
+                    option.value = col;
+                    option.textContent = col;
+                    select.appendChild(option);
+                });
+                
+                if (currentVal && allColumns.includes(currentVal)) select.value = currentVal;
+            });
+        }
+
+        // --- Core Logic ---
+
+        function getNestedValue(value) {
+            if (value === null || value === undefined) return value;
+            if (typeof value === 'object' && !Array.isArray(value)) {
+                return value.name || value.Name || value.title || value.Title || value.id || Object.values(value)[0];
+            }
+            return value;
+        }
+
+        function getSafeString(val) {
+            const v = getNestedValue(val);
+            if (v === null || v === undefined || v === '') return '(Empty)';
+            return String(v);
+        }
+
+        function filterRecords(records) {
+            return records.filter(r => {
+                return Object.entries(filterState).every(([col, allowedSet]) => {
+                    if (!allowedSet) return true;
+                    const rawVal = r[col];
+                    const strVal = getSafeString(rawVal);
+                    return allowedSet.has(strVal);
+                });
+            });
+        }
+
+        function sortRecords(records) {
+            const col = document.getElementById('sortColumn').value;
+            const order = document.getElementById('sortOrder').value;
+            if (!col) return records;
+
+            return [...records].sort((a, b) => {
+                let aVal = getNestedValue(a[col]);
+                let bVal = getNestedValue(b[col]);
+
+                if (aVal == null && bVal == null) return 0;
+                if (aVal == null) return order === 'asc' ? 1 : -1;
+                if (bVal == null) return order === 'asc' ? -1 : 1;
+
+                if (typeof aVal === 'number' && typeof bVal === 'number') {
+                    return order === 'asc' ? aVal - bVal : bVal - aVal;
+                }
+                
+                aVal = String(aVal);
+                bVal = String(bVal);
+                return order === 'asc' ? aVal.localeCompare(bVal, 'fr-FR', {sensitivity:'base'}) : bVal.localeCompare(aVal, 'fr-FR', {sensitivity:'base'});
+            });
+        }
+
+        function groupData(records, groupFields) {
+            if (groupFields.length === 0) return records;
+            const grouped = {};
+            
+            records.forEach(record => {
+                let current = grouped;
+                groupFields.forEach((field, index) => {
+                    const key = getSafeString(record[field]);
+                    
+                    if (index === groupFields.length - 1) {
+                        if (!current[key]) current[key] = [];
+                        current[key].push(record);
+                    } else {
+                        if (!current[key]) current[key] = {};
+                        current = current[key];
+                    }
+                });
+            });
+            return grouped;
+        }
+
+        function calculateNumericSums(records) {
+            const sums = {};
+            displayedColumns.forEach(col => {
+                const values = records.map(r => {
+                    const val = getNestedValue(r[col]);
+                    return typeof val === 'number' ? val : null;
+                }).filter(v => v !== null);
+                
+                if (values.length > 0) {
+                    sums[col] = values.reduce((acc, v) => acc + v, 0);
+                }
+            });
+            return sums;
+        }
+
+        // --- Rendering ---
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            const theadRow = document.getElementById('tableHeaderRow');
+            
+            // Render Header
+            theadRow.innerHTML = '';
+            displayedColumns.forEach(col => {
+                const th = document.createElement('th');
+                th.textContent = col;
+                theadRow.appendChild(th);
+            });
+
+            // Render Body
+            tbody.innerHTML = '';
+            
+            const groupLevels = [
+                document.getElementById('group1').value,
+                document.getElementById('group2').value,
+                document.getElementById('group3').value
+            ].filter(v => v);
+
+            const filtered = filterRecords(allRecords);
+            
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="100" class="empty-state">No data matches filters</td></tr>';
+                return;
+            }
+
+            const sorted = sortRecords(filtered);
+
+            if (groupLevels.length === 0) {
+                renderRows(tbody, sorted, 0);
+            } else {
+                const grouped = groupData(sorted, groupLevels);
+                renderGroupLevel(tbody, grouped, groupLevels, 0, []);
+            }
+        }
+
+        function renderGroupLevel(tbody, data, groupFields, level, path) {
+            if (Array.isArray(data)) {
+                const sortedLeafs = sortRecords(data); 
+                renderRows(tbody, sortedLeafs, level);
+                return;
+            }
+
+            const keys = Object.keys(data).sort((a,b) => a.localeCompare(b, 'fr-FR', {sensitivity:'base'}));
+            
+            keys.forEach(key => {
+                const groupPath = [...path, key].join('::');
+                const isExpanded = expandedGroups.has(groupPath);
+                
+                const tr = document.createElement('tr');
+                tr.className = `group-header level-${level}`;
+                tr.onclick = () => toggleGroup(groupPath);
+                
+                const td = document.createElement('td');
+                td.colSpan = Math.max(displayedColumns.length, 1);
+                
+                const groupRecords = getDeepRecords(data[key]);
+                const count = groupRecords.length;
+                const sums = calculateNumericSums(groupRecords);
+
+                const indent = level * 20; 
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'group-header-content';
+                contentDiv.style.paddingLeft = indent + 'px';
+
+                const icon = document.createElement('span');
+                icon.className = `toggle-icon ${isExpanded ? '' : 'collapsed'}`;
+                icon.innerHTML = '▼';
+                
+                const title = document.createElement('span');
+                title.style.fontWeight = '600';
+                title.textContent = `${key}`;
+                
+                const statsDiv = document.createElement('div');
+                statsDiv.className = 'group-stats';
+                
+                const countBadge = document.createElement('span');
+                countBadge.className = 'group-stat';
+                countBadge.innerHTML = `<span class="group-stat-value">${count}</span>`;
+                statsDiv.appendChild(countBadge);
+
+                Object.entries(sums).forEach(([col, sum]) => {
+                    const stat = document.createElement('span');
+                    stat.className = 'group-stat';
+                    stat.innerHTML = `<span style="opacity:0.7">${col}:</span> <span class="group-stat-value">${sum.toLocaleString('fr-FR')}</span>`;
+                    statsDiv.appendChild(stat);
+                });
+
+                contentDiv.appendChild(icon);
+                contentDiv.appendChild(title);
+                contentDiv.appendChild(statsDiv);
+                
+                td.appendChild(contentDiv);
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+
+                if (isExpanded) {
+                    renderGroupLevel(tbody, data[key], groupFields, level + 1, [...path, key]);
+                }
+            });
+        }
+
+        function renderRows(tbody, records, level) {
+            records.forEach(record => {
+                const tr = document.createElement('tr');
+                tr.className = 'record-row';
+                
+                displayedColumns.forEach((col, colIndex) => {
+                    const td = document.createElement('td');
+                    let rawVal = record[col];
+                    let val = getNestedValue(rawVal);
+                    
+                    if (colIndex === 0 && level > 0) {
+                        const indent = (level * 20); 
+                        td.style.paddingLeft = (indent + 8) + 'px'; 
+                    }
+
+                    if (typeof val === 'number') td.classList.add('numeric');
+
+                    if (Array.isArray(val)) {
+                        val.forEach(v => {
+                            const tag = document.createElement('span');
+                            tag.className = `tag ${getTagColor(v)}`;
+                            tag.textContent = v;
+                            td.appendChild(tag);
+                        });
+                    } else if (val instanceof Date) {
+                        td.textContent = val.toLocaleDateString('fr-FR');
+                    } else if (typeof val === 'number') {
+                        td.textContent = val.toLocaleString('fr-FR');
+                    } else {
+                        const div = document.createElement('div');
+                        div.className = 'cell-content';
+                        div.textContent = (val === null || val === undefined) ? '' : val;
+                        div.title = (val === null || val === undefined) ? '' : val;
+                        td.appendChild(div);
+                    }
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        function getDeepRecords(data) {
+            if (Array.isArray(data)) return data;
+            let res = [];
+            Object.values(data).forEach(v => res = res.concat(getDeepRecords(v)));
+            return res;
+        }
+
+        function toggleGroup(path) {
+            if (expandedGroups.has(path)) expandedGroups.delete(path);
+            else expandedGroups.add(path);
+            renderTable();
+        }
+
+        function getTagColor(text) {
+            const colors = ['pink', 'blue', 'green', 'orange', 'purple', 'gray'];
+            const hash = String(text).split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+            return colors[hash % colors.length];
+        }
+
+        // --- SAVE / LOAD Logic ---
+        
+        function serializeFilterState(fs) {
+            const serializable = {};
+            for (const key in fs) {
+                serializable[key] = Array.from(fs[key]);
+            }
+            return serializable;
+        }
+
+        function deserializeFilterState(fs) {
+            const deserialized = {};
+            for (const key in fs) {
+                deserialized[key] = new Set(fs[key]);
+            }
+            return deserialized;
+        }
+
+        async function saveConfiguration(name) {
+            if (!name) return;
+            const config = {
+                group1: document.getElementById('group1').value,
+                group2: document.getElementById('group2').value,
+                group3: document.getElementById('group3').value,
+                sortColumn: document.getElementById('sortColumn').value,
+                sortOrder: document.getElementById('sortOrder').value,
+                displayedColumns: displayedColumns,
+                filterState: serializeFilterState(filterState)
+            };
+            const payload = JSON.stringify(config);
+
+            try {
+                await grist.docApi.applyUserActions([
+                    ['AddRecord', 'AirParam', null, {
+                        TableName: currentTableId,
+                        ParamName: name,
+                        ParamSave: payload
+                    }]
+                ]);
+                document.getElementById('genericModal').style.display = 'none';
+            } catch (err) {
+                console.error("Failed to save:", err);
+                alert("Erreur: Impossible de sauver dans la table 'AirParam'. Vérifiez qu'elle existe.");
+            }
+        }
+
+        async function loadConfigurationList() {
+            try {
+                const tableData = await grist.docApi.fetchTable('AirParam');
+                const myConfigs = [];
+                const count = tableData.TableName.length;
+                for(let i=0; i<count; i++) {
+                    if (tableData.TableName[i] === currentTableId) {
+                        myConfigs.push({
+                            id: tableData.id[i],
+                            name: tableData.ParamName[i],
+                            save: tableData.ParamSave[i]
+                        });
+                    }
+                }
+                return myConfigs;
+            } catch (err) {
+                console.error("Failed to fetch params:", err);
+                alert("Erreur: Impossible de lire la table 'AirParam'.");
+                return [];
+            }
+        }
+
+        function applyConfiguration(configJson) {
+            try {
+                const config = JSON.parse(configJson);
+                
+                document.getElementById('group1').value = config.group1 || '';
+                document.getElementById('group2').value = config.group2 || '';
+                document.getElementById('group3').value = config.group3 || '';
+                
+                if(allColumns.includes(config.sortColumn)) {
+                    document.getElementById('sortColumn').value = config.sortColumn;
+                    document.getElementById('sortOrder').value = config.sortOrder || 'asc';
+                }
+                
+                if(config.displayedColumns && Array.isArray(config.displayedColumns)) {
+                    displayedColumns = config.displayedColumns.filter(c => allColumns.includes(c));
+                    if(displayedColumns.length === 0) displayedColumns = [...allColumns];
+                }
+
+                if(config.filterState) {
+                    filterState = deserializeFilterState(config.filterState);
+                } else {
+                    filterState = {};
+                }
+
+                renderTable();
+                updateFilterButtonsUI();
+                document.getElementById('genericModal').style.display = 'none';
+
+            } catch (e) {
+                console.error("Error applying config", e);
+                alert("Données corrompues.");
+            }
+        }
+
+        // --- Filter & Modal UI ---
+
+        const modal = document.getElementById('genericModal');
+        const modalList = document.getElementById('modalList');
+        const modalControls = document.getElementById('modalControls');
+        const modalSaveBtn = document.getElementById('modalSave');
+
+        async function openModal(type, targetColumn = null) {
+            currentModalContext = type;
+            currentFilterColumn = targetColumn;
+            modal.style.display = 'flex';
+            modalList.innerHTML = '';
+            modalControls.innerHTML = ''; 
+            modalSaveBtn.style.display = 'block'; 
+            
+            if (type === 'columns') {
+                document.getElementById('modalTitle').textContent = 'Colonnes & Ordre';
+                document.getElementById('modalSubtitle').textContent = 'Glissez pour réorganiser.';
+                
+                modalControls.innerHTML = `
+                    <button onclick="document.querySelectorAll('#modalList input').forEach(c=>c.checked=true)">Tout cocher</button>
+                    <button onclick="document.querySelectorAll('#modalList input').forEach(c=>c.checked=false)">Tout décocher</button>
+                `;
+
+                let orderedList;
+                if (JSON.stringify(displayedColumns) === JSON.stringify(allColumns)) {
+                    orderedList = [...allColumns].sort((a,b) => a.localeCompare(b, 'fr-FR', {sensitivity:'base'}));
+                } else {
+                    const remaining = allColumns.filter(c => !displayedColumns.includes(c)).sort((a,b) => a.localeCompare(b, 'fr-FR', {sensitivity:'base'}));
+                    orderedList = [...displayedColumns, ...remaining];
+                }
+
+                orderedList.forEach(col => {
+                    const div = document.createElement('div');
+                    div.className = 'checkbox-item';
+                    div.draggable = true;
+                    div.addEventListener('dragstart', handleDragStart);
+                    div.addEventListener('dragover', handleDragOver);
+                    div.addEventListener('dragleave', handleDragLeave);
+                    div.addEventListener('drop', handleDrop);
+                    div.addEventListener('dragend', handleDragEnd);
+
+                    const handle = document.createElement('span');
+                    handle.className = 'drag-handle';
+                    handle.innerHTML = '⋮⋮';
+                    div.appendChild(handle);
+
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.value = col;
+                    cb.checked = displayedColumns.includes(col);
+                    div.appendChild(cb);
+                    div.appendChild(document.createTextNode(col));
+
+                    const controls = document.createElement('div');
+                    controls.className = 'reorder-controls';
+                    controls.innerHTML = `
+                        <button class="reorder-btn" onclick="moveItem(this, -1)">▲</button>
+                        <button class="reorder-btn" onclick="moveItem(this, 1)">▼</button>
+                    `;
+                    div.appendChild(controls);
+                    modalList.appendChild(div);
+                });
+
+            } else if (type === 'filter') {
+                document.getElementById('modalTitle').textContent = `Filtre: ${targetColumn}`;
+                document.getElementById('modalSubtitle').textContent = 'Décochez pour masquer.';
+                
+                modalControls.innerHTML = `
+                    <button onclick="document.querySelectorAll('#modalList input').forEach(c=>c.checked=true)">Tout cocher</button>
+                    <button onclick="document.querySelectorAll('#modalList input').forEach(c=>c.checked=false)">Tout décocher</button>
+                `;
+
+                const values = new Set();
+                allRecords.forEach(r => values.add(getSafeString(r[targetColumn])));
+                const sortedValues = Array.from(values).sort((a,b) => a.localeCompare(b, 'fr-FR', {sensitivity:'base'}));
+                const currentFilters = filterState[targetColumn];
+
+                sortedValues.forEach(val => {
+                    const div = document.createElement('label');
+                    div.className = 'checkbox-item';
+                    div.style.cursor = 'pointer';
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.value = val;
+                    cb.checked = !currentFilters || currentFilters.has(val);
+                    div.appendChild(cb);
+                    div.appendChild(document.createTextNode(val === '(Empty)' ? '(Vide)' : val));
+                    modalList.appendChild(div);
+                });
+
+            } else if (type === 'save') {
+                document.getElementById('modalTitle').textContent = 'Sauvegarder la vue';
+                document.getElementById('modalSubtitle').textContent = 'Donnez un nom à cette configuration.';
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = 'saveParamName';
+                input.placeholder = 'Nom de la vue...';
+                input.style.width = '100%';
+                input.style.padding = '8px';
+                modalList.appendChild(input);
+
+            } else if (type === 'load') {
+                document.getElementById('modalTitle').textContent = 'Charger une vue';
+                document.getElementById('modalSubtitle').textContent = 'Cliquez pour charger.';
+                modalSaveBtn.style.display = 'none'; 
+
+                modalList.innerHTML = '<div class="loading">Chargement...</div>';
+                
+                const configs = await loadConfigurationList();
+                modalList.innerHTML = '';
+                
+                if (configs.length === 0) {
+                    modalList.innerHTML = '<div class="empty-state">Aucune vue sauvegardée pour cette table.</div>';
+                }
+
+                configs.forEach(conf => {
+                    const div = document.createElement('div');
+                    div.className = 'param-item';
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'param-name';
+                    nameSpan.textContent = conf.name;
+                    div.appendChild(nameSpan);
+                    div.onclick = () => applyConfiguration(conf.save);
+                    modalList.appendChild(div);
+                });
+            }
+        }
+
+        // --- Drag and Drop Handlers ---
+        function handleDragStart(e) {
+            this.style.opacity = '0.4';
+            dragSrcEl = this;
+            e.dataTransfer.effectAllowed = 'move';
+            this.classList.add('dragging');
+        }
+        function handleDragOver(e) {
+            if (e.preventDefault) e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            this.classList.add('over');
+            return false;
+        }
+        function handleDragLeave(e) { this.classList.remove('over'); }
+        function handleDrop(e) {
+            if (e.stopPropagation) e.stopPropagation();
+            if (dragSrcEl !== this) {
+                const parent = this.parentNode;
+                const siblings = Array.from(parent.children);
+                const srcIndex = siblings.indexOf(dragSrcEl);
+                const targetIndex = siblings.indexOf(this);
+                if (srcIndex < targetIndex) parent.insertBefore(dragSrcEl, this.nextSibling);
+                else parent.insertBefore(dragSrcEl, this);
+            }
+            return false;
+        }
+        function handleDragEnd(e) {
+            this.style.opacity = '1';
+            this.classList.remove('dragging');
+            modalList.querySelectorAll('.checkbox-item').forEach(i => i.classList.remove('over'));
+        }
+        window.moveItem = function(btn, dir) {
+            const item = btn.closest('.checkbox-item');
+            if (dir === -1 && item.previousElementSibling) item.parentNode.insertBefore(item, item.previousElementSibling);
+            if (dir === 1 && item.nextElementSibling) item.parentNode.insertBefore(item.nextElementSibling, item);
+        };
+
+        // --- Event Listeners ---
+
+        document.getElementById('modalSave').addEventListener('click', () => {
+            if (currentModalContext === 'columns') {
+                const items = Array.from(modalList.querySelectorAll('.checkbox-item'));
+                displayedColumns = items.filter(i => i.querySelector('input').checked).map(i => i.querySelector('input').value);
+                if (displayedColumns.length === 0 && allColumns.length > 0) displayedColumns = [allColumns[0]]; 
+                renderTable();
+                modal.style.display = 'none';
+            } else if (currentModalContext === 'filter') {
+                const checkboxes = Array.from(modalList.querySelectorAll('input[type="checkbox"]'));
+                const selected = checkboxes.filter(cb => cb.checked).map(cb => cb.value);
+                const all = checkboxes.map(cb => cb.value);
+                if (selected.length === all.length) delete filterState[currentFilterColumn];
+                else filterState[currentFilterColumn] = new Set(selected);
+                updateFilterButtonsUI();
+                renderTable();
+                modal.style.display = 'none';
+            } else if (currentModalContext === 'save') {
+                const name = document.getElementById('saveParamName').value;
+                if(name) saveConfiguration(name);
+            }
+        });
+
+        document.getElementById('modalCancel').addEventListener('click', () => modal.style.display = 'none');
+        document.getElementById('selectColumnsBtn').addEventListener('click', () => openModal('columns'));
+        
+        // Save/Load Buttons
+        document.getElementById('saveViewBtn').addEventListener('click', () => openModal('save'));
+        document.getElementById('loadViewBtn').addEventListener('click', () => openModal('load'));
+
+        ['group1', 'group2', 'group3', 'sortColumn', 'sortOrder'].forEach(id => {
+            document.getElementById(id).addEventListener('change', renderTable);
+        });
+
+        function updateFilterButtonsUI() {
+            ['group1', 'group2', 'group3'].forEach((id, idx) => {
+                const select = document.getElementById(id);
+                const btn = document.getElementById(`filterBtn${idx+1}`);
+                const colName = select.value;
+                if (!colName) {
+                    btn.style.display = 'none';
+                } else {
+                    btn.style.display = 'inline-flex';
+                    const hasFilter = filterState[colName] !== undefined;
+                    if (hasFilter) btn.classList.add('has-filter');
+                    else btn.classList.remove('has-filter');
+                    btn.onclick = () => openModal('filter', colName);
+                }
+            });
+        }
+        ['group1', 'group2', 'group3'].forEach(id => document.getElementById(id).addEventListener('change', updateFilterButtonsUI));
+
+        // Instructions UI
+        const instructions = document.getElementById('instructions');
+        const toggleBtn = document.getElementById('toggleHelpBtn');
+        const closeHelpBtn = document.getElementById('closeHelpBtn');
+        const dragHeader = document.getElementById('instructionsHeader');
+
+        toggleBtn.addEventListener('click', () => {
+            if (instructions.style.display === 'none') {
+                instructions.style.display = 'block';
+            } else {
+                instructions.style.display = 'none';
+            }
+        });
+
+        closeHelpBtn.addEventListener('click', () => {
+            instructions.style.display = 'none';
+        });
+
+        // Draggable Logic
+        let isDragging = false;
+        let startX, startY, initialLeft, initialTop;
+
+        dragHeader.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            
+            // Get current computed style
+            const style = window.getComputedStyle(instructions);
+            initialLeft = parseInt(style.left);
+            initialTop = parseInt(style.top);
+            
+            // Cursor
+            dragHeader.style.cursor = 'grabbing';
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+
+        function onMouseMove(e) {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            instructions.style.left = `${initialLeft + dx}px`;
+            instructions.style.top = `${initialTop + dy}px`;
+        }
+
+        function onMouseUp() {
+            isDragging = false;
+            dragHeader.style.cursor = 'grab';
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        }
+
+    </script>
+</body>
+</html>

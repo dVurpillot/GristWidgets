@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>GRIST + ECharts Pie Chart Widget</title>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+
+  <!-- Built-in Themes -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/vintage.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/dark.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/macarons.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/infographic.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/shine.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/roma.js"></script>
+
+  <style>
+    body { display: flex; height: 100vh; margin: 0; font-family: sans-serif; }
+    #controls { width: 30%; padding: 10px; border-right: 1px solid #ccc; box-sizing: border-box; overflow-y: auto; }
+    #chart { width: 70%; height: 100%; }
+    label { display: block; margin-top: 10px; }
+    select, input { width: 100%; }
+    button {
+      margin-top: 15px;
+      padding: 8px 15px;
+      background: #000091;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1212ff;
+    }
+    #saveBtn {
+      background: #28a745;
+      margin-right: 5px;
+    }
+    #saveBtn:hover {
+      background: #218838;
+    }
+    #loadBtn {
+      background: #17a2b8;
+    }
+    #loadBtn:hover {
+      background: #138496;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 8px;
+      background: #f0f0f0;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Left Panel: Controls -->
+  <div id="controls">
+    <h3>Pie Chart Settings</h3>
+    <label>Title: <input type="text" id="titleInput" value="My Pie Chart"></label>
+    <label>Inside Radius (%): <input type="number" id="insideRadiusInput" value="18"></label>
+    <label>Outside Radius (%): <input type="number" id="outsideRadiusInput" value="51"></label>
+    <label>Column for Categories: <input type="text" id="categoryColumn" placeholder="e.g. Category"></label>
+    <label>Column for Values: <input type="text" id="valueColumn" placeholder="e.g. Value"></label>
+
+    <!-- Theme -->
+    <h4>Theme</h4>
+    <label>Select Theme:
+      <select id="themeInput">
+        <option value="">default</option>
+        <option value="vintage">vintage</option>
+        <option value="dark">dark</option>
+        <option value="macarons">macarons</option>
+        <option value="infographic">infographic</option>
+        <option value="shine">shine</option>
+        <option value="roma">roma</option>
+        <option value="DSFR">DSFR</option>
+      </select>
+    </label>
+
+    <!-- Legend -->
+    <h4>Legend Settings</h4>
+    <label>Show Legend: <input type="checkbox" id="legendShowInput" checked></label>
+    <label>Orient:
+      <select id="legendOrientInput">
+        <option value="horizontal">horizontal</option>
+        <option value="vertical">vertical</option>
+      </select>
+    </label>
+    <label>Position:
+      <select id="legendPositionInput">
+        <option value="top">top</option>
+        <option value="bottom">bottom</option>
+        <option value="left">left</option>
+        <option value="right">right</option>
+        <option value="center">center</option>
+      </select>
+    </label>
+
+    <!-- Label -->
+    <h4>Label Settings</h4>
+    <label>Show Labels: <input type="checkbox" id="labelShowInput" checked></label>
+    <label>Position:
+      <select id="labelPositionInput">
+        <option value="outside">outside</option>
+        <option value="inside">inside</option>
+        <option value="center">center</option>
+      </select>
+    </label>
+    <label>Rotate (degrees): <input type="number" id="labelRotateInput" value="0"></label>
+    <label>Color: <input type="text" id="labelColorInput" value="#000000"></label>
+
+    <!-- Formatter Control -->
+    <label>Formatter Mode:
+      <select id="formatterModeInput">
+        <option value="string">String Template</option>
+        <option value="money">Monetary (€)</option>
+        <option value="percent">Percent Only</option>
+        <option value="multiline">Multiline Example</option>
+      </select>
+    </label>
+    <label>Formatter Template (used when mode=String Template):
+      <input type="text" id="labelFormatterInput" value="{b}: {c} ({d}%)">
+    </label>
+
+    <label>Font Size (px): <input type="number" id="labelFontSizeInput" value="12"></label>
+    <label>Bleed Margin (px): <input type="number" id="labelBleedMarginInput" value="10"></label>
+    <label>Min Show Label Angle (degrees): <input type="number" id="minShowLabelAngleInput" value="0"></label>
+
+    <h4>Save/Load Settings</h4>
+    <button id="saveBtn">Save Parameters</button>
+    <button id="loadBtn">Load Parameters</button>
+    <small style="display: block; margin-top: 5px; color: #666;">Parameters saved to 'Parameters' column in table 'Data1' (row 1)</small>
+
+    <button id="updateBtn">Update Chart</button>
+
+    <div class="status" id="status">
+      Waiting for data...
+    </div>
+  </div>
+  <div id="chart"></div>
+
+<script>
+    // ============================================================================
+    // CONFIGURATION: Update this table name when using the widget with another table
+    // ============================================================================
+    const TABLE_NAME = 'Data1';  // ← CHANGE THIS to your table name
+    // ============================================================================
+
+    // Register custom DSFR theme (replace with your actual DSFR config if needed)
+    echarts.registerTheme("DSFR", {
+      color: ['#2846bc', '#598fc9', '#00386a', '#008188', '#55c5cc', '#8b53c8', '#a78bcc', '#a7a7a7'],
+      backgroundColor: '#ffffff',
+      textStyle: { fontFamily: 'Marianne, Arial, sans-serif' },
+      title: { textStyle: { color: '#000091', fontWeight: 'bold' } },
+      legend: { textStyle: { color: '#161616' } }
+    });
+
+    let chart;
+    let option = {
+      title: { text: 'My Pie Chart', left: 'center' },
+      tooltip: { trigger: 'item' },
+      legend: { show: true, orient: 'horizontal', left: 'center' },
+      series: [{ type: 'pie', radius: ['18%', '51%'], data: [] }]
+    };
+
+    grist.ready({
+      requiredAccess: 'full',
+      columns: []
+    });
+    
+    let gristData = [];
+
+    // Update status message
+    function updateStatus(message) {
+      document.getElementById('status').textContent = message;
+    }
+
+    grist.onRecords(records => {
+      gristData = records;
+      updateStatus(`${records.length} records loaded`);
+      renderChart();
+    });
+
+    function renderChart() {
+      const title = document.getElementById('titleInput').value;
+      const insideRadius = document.getElementById('insideRadiusInput').value + '%';
+      const outsideRadius = document.getElementById('outsideRadiusInput').value + '%';
+      const categoryCol = document.getElementById('categoryColumn').value;
+      const valueCol = document.getElementById('valueColumn').value;
+      const theme = document.getElementById('themeInput').value;
+
+      const legendShow = document.getElementById('legendShowInput').checked;
+      const legendOrient = document.getElementById('legendOrientInput').value;
+      const legendPosition = document.getElementById('legendPositionInput').value;
+
+      const labelShow = document.getElementById('labelShowInput').checked;
+      const labelPosition = document.getElementById('labelPositionInput').value;
+      const labelRotate = parseInt(document.getElementById('labelRotateInput').value, 10);
+      const labelColor = document.getElementById('labelColorInput').value;
+      const formatterMode = document.getElementById('formatterModeInput').value;
+      const labelFormatter = document.getElementById('labelFormatterInput').value;
+      const labelFontSize = parseInt(document.getElementById('labelFontSizeInput').value, 10);
+      const labelBleedMargin = parseInt(document.getElementById('labelBleedMarginInput').value, 10);
+      const minShowLabelAngle = parseInt(document.getElementById('minShowLabelAngleInput').value, 10);
+
+      const pieData = gristData.map(r => ({
+        name: r[categoryCol],
+        value: r[valueCol]
+      })).filter(d => d.name !== undefined && d.value !== undefined);
+
+      // Decide formatter type
+      let formatterSetting;
+      if (formatterMode === "money") {
+        formatterSetting = function(params) {
+          const formatted = params.value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+          return formatted + "€";
+        };
+      } else if (formatterMode === "percent") {
+        formatterSetting = function(params) {
+          return params.percent + "%";
+        };
+      } else if (formatterMode === "multiline") {
+        formatterSetting = function(params) {
+          return params.name + "\n" + params.value + "\n(" + params.percent + "%)";
+        };
+      } else {
+        formatterSetting = labelFormatter; // string template mode
+      }
+
+      option = {
+        title: { text: title, left: 'center' },
+        tooltip: { trigger: 'item' },
+        legend: {
+          show: legendShow,
+          orient: legendOrient,
+          [legendPosition]: 10
+        },
+        series: [{
+          type: 'pie',
+          radius: [insideRadius, outsideRadius],
+          data: pieData,
+          minShowLabelAngle: minShowLabelAngle,
+          label: {
+            show: labelShow,
+            position: labelPosition,
+            rotate: labelRotate,
+            color: labelColor,
+            fontSize: labelFontSize,
+            bleedMargin: labelBleedMargin,
+            formatter: formatterSetting
+          }
+        }]
+      };
+
+      // Dispose of existing chart instance safely
+      if (chart && typeof chart.dispose === 'function') {
+        try {
+          chart.dispose();
+        } catch (e) {
+          console.warn('Error disposing chart:', e);
+        }
+      }
+      
+      const chartContainer = document.getElementById('chart');
+      if (chartContainer) {
+        chart = echarts.init(chartContainer, theme || null);
+        chart.setOption(option);
+      }
+      
+      updateStatus(`Chart rendered with ${pieData.length} data points`);
+    }
+
+    document.getElementById('updateBtn').addEventListener('click', renderChart);
+
+    // Save parameters to the Parameters column (first row)
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      try {
+        const params = {
+          titleInput: document.getElementById('titleInput').value,
+          insideRadiusInput: document.getElementById('insideRadiusInput').value,
+          outsideRadiusInput: document.getElementById('outsideRadiusInput').value,
+          categoryColumn: document.getElementById('categoryColumn').value,
+          valueColumn: document.getElementById('valueColumn').value,
+          themeInput: document.getElementById('themeInput').value,
+          legendShowInput: document.getElementById('legendShowInput').checked,
+          legendOrientInput: document.getElementById('legendOrientInput').value,
+          legendPositionInput: document.getElementById('legendPositionInput').value,
+          labelShowInput: document.getElementById('labelShowInput').checked,
+          labelPositionInput: document.getElementById('labelPositionInput').value,
+          labelRotateInput: document.getElementById('labelRotateInput').value,
+          labelColorInput: document.getElementById('labelColorInput').value,
+          formatterModeInput: document.getElementById('formatterModeInput').value,
+          labelFormatterInput: document.getElementById('labelFormatterInput').value,
+          labelFontSizeInput: document.getElementById('labelFontSizeInput').value,
+          labelBleedMarginInput: document.getElementById('labelBleedMarginInput').value,
+          minShowLabelAngleInput: document.getElementById('minShowLabelAngleInput').value
+        };
+        
+        // Fetch current data from the table
+        const tableData = await grist.docApi.fetchTable(TABLE_NAME);
+        
+        if (tableData && tableData.id && tableData.id.length > 0) {
+          const firstRowId = tableData.id[0];
+          
+          // Save to Parameters column in first row
+          await grist.docApi.applyUserActions([
+            ['UpdateRecord', TABLE_NAME, firstRowId, { Parameters: JSON.stringify(params) }]
+          ]);
+          updateStatus('Parameters saved successfully!');
+        } else {
+          updateStatus('Error: Table "' + TABLE_NAME + '" has no rows');
+        }
+      } catch (error) {
+        updateStatus('Error saving parameters: ' + error.message);
+        console.error('Error saving parameters:', error);
+      }
+    });
+
+    // Load parameters from the Parameters column (first row)
+    document.getElementById('loadBtn').addEventListener('click', async () => {
+      try {
+        // Fetch data from the table
+        const tableData = await grist.docApi.fetchTable(TABLE_NAME);
+        
+        console.log('Table raw data:', tableData);
+        
+        if (tableData && tableData.id && tableData.id.length > 0 && tableData.Parameters && tableData.Parameters[0]) {
+          const paramsString = tableData.Parameters[0];
+          console.log('Parameters string:', paramsString);
+          
+          const params = JSON.parse(paramsString);
+          
+          // Restore all parameters
+          document.getElementById('titleInput').value = params.titleInput || 'My Pie Chart';
+          document.getElementById('insideRadiusInput').value = params.insideRadiusInput || '18';
+          document.getElementById('outsideRadiusInput').value = params.outsideRadiusInput || '51';
+          document.getElementById('categoryColumn').value = params.categoryColumn || '';
+          document.getElementById('valueColumn').value = params.valueColumn || '';
+          document.getElementById('themeInput').value = params.themeInput || '';
+          document.getElementById('legendShowInput').checked = params.legendShowInput !== undefined ? params.legendShowInput : true;
+          document.getElementById('legendOrientInput').value = params.legendOrientInput || 'horizontal';
+          document.getElementById('legendPositionInput').value = params.legendPositionInput || 'top';
+          document.getElementById('labelShowInput').checked = params.labelShowInput !== undefined ? params.labelShowInput : true;
+          document.getElementById('labelPositionInput').value = params.labelPositionInput || 'outside';
+          document.getElementById('labelRotateInput').value = params.labelRotateInput || '0';
+          document.getElementById('labelColorInput').value = params.labelColorInput || '#000000';
+          document.getElementById('formatterModeInput').value = params.formatterModeInput || 'string';
+          document.getElementById('labelFormatterInput').value = params.labelFormatterInput || '{b}: {c} ({d}%)';
+          document.getElementById('labelFontSizeInput').value = params.labelFontSizeInput || '12';
+          document.getElementById('labelBleedMarginInput').value = params.labelBleedMarginInput || '10';
+          document.getElementById('minShowLabelAngleInput').value = params.minShowLabelAngleInput || '0';
+          
+          updateStatus('Parameters loaded successfully!');
+          renderChart();
+        } else {
+          updateStatus('No saved parameters found in table "' + TABLE_NAME + '"');
+          console.log('Parameters column data:', tableData.Parameters);
+        }
+      } catch (error) {
+        updateStatus('Error loading parameters: ' + error.message);
+        console.error('Error loading parameters:', error);
+      }
+    });
+
+    // Auto-resize chart when window size changes
+    window.addEventListener('resize', () => {
+      if (chart) {
+        chart.resize();
+      }
+    });
+</script>
+</body>
+</html>

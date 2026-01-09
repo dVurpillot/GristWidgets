@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>GRIST + ECharts Sankey Chart Widget</title>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+
+  <!-- Built-in Themes -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/vintage.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/dark.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/macarons.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/infographic.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/shine.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/theme/roma.js"></script>
+
+  <style>
+    body { 
+      display: flex; 
+      height: 100vh; 
+      margin: 0; 
+      font-family: sans-serif; 
+    }
+    #controls { 
+      width: 30%; 
+      padding: 10px; 
+      border-right: 1px solid #ccc; 
+      box-sizing: border-box; 
+      overflow-y: auto; 
+    }
+    #chart { 
+      width: 70%; 
+      height: 100%; 
+    }
+    label { 
+      display: block; 
+      margin-top: 10px; 
+    }
+    input[type="text"], input[type="number"], select { 
+      width: 100%; 
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 15px;
+      padding: 8px 15px;
+      background: #000091;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1212ff;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 8px;
+      background: #f0f0f0;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Left Panel: Controls -->
+  <div id="controls">
+    <h3>Sankey Chart Settings</h3>
+    
+    <label>Chart Title: 
+      <input type="text" id="titleInput" value="Sankey Diagram">
+    </label>
+
+    <h4>Theme</h4>
+    <label>Select Theme:
+      <select id="themeInput">
+        <option value="">default</option>
+        <option value="vintage">vintage</option>
+        <option value="dark">dark</option>
+        <option value="macarons">macarons</option>
+        <option value="infographic">infographic</option>
+        <option value="shine">shine</option>
+        <option value="roma">roma</option>
+      </select>
+    </label>
+    <label>Override Theme Colors: 
+      <input type="checkbox" id="overrideColorsInput">
+    </label>
+    <small style="color: #666;">Uses colors from 'Color' column in Name table</small>
+
+    <h4>Data Mapping</h4>
+    <label>Source Column (in Link table): 
+      <input type="text" id="sourceColumn" value="Source">
+    </label>
+    <label>Target Column (in Link table): 
+      <input type="text" id="targetColumn" value="Target">
+    </label>
+    <label>Value Column (in Link table): 
+      <input type="text" id="valueColumn" value="Value">
+    </label>
+    <label>Name Column (in Name table): 
+      <input type="text" id="nameColumn" value="Name">
+    </label>
+    <label>Color Column (in Name table): 
+      <input type="text" id="colorColumn" value="Color">
+    </label>
+
+    <h4>Chart Layout</h4>
+    <label>Orient:
+      <select id="orientInput">
+        <option value="vertical">Vertical</option>
+        <option value="horizontal">Horizontal</option>
+      </select>
+    </label>
+    
+    <label>Chart Width (px or %): 
+      <input type="text" id="chartWidthInput" value="80%">
+    </label>
+    
+    <label>Chart Height (px or %): 
+      <input type="text" id="chartHeightInput" value="80%">
+    </label>
+    
+    <label>Node Width (px): 
+      <input type="number" id="nodeWidthInput" value="20">
+    </label>
+    
+    <label>Node Gap (px): 
+      <input type="number" id="nodeGapInput" value="8">
+    </label>
+    
+    <label>Layout Iterations: 
+      <input type="number" id="layoutIterationsInput" value="32">
+    </label>
+
+    <h4>Node Label Settings</h4>
+    <label>Show Node Labels: 
+      <input type="checkbox" id="labelShowInput" checked>
+    </label>
+    <label>Label Position:
+      <select id="labelPositionInput">
+        <option value="right">right</option>
+        <option value="left">left</option>
+        <option value="top">top</option>
+        <option value="bottom">bottom</option>
+        <option value="inside">inside</option>
+        <option value="insideLeft">insideLeft</option>
+        <option value="insideRight">insideRight</option>
+        <option value="insideTop">insideTop</option>
+        <option value="insideBottom">insideBottom</option>
+      </select>
+    </label>
+    <label>Label Rotate (degrees): 
+      <input type="number" id="labelRotateInput" value="0">
+    </label>
+    <label>Label Font Size (px): 
+      <input type="number" id="labelFontSizeInput" value="12">
+    </label>
+
+    <h4>Edge Label Settings</h4>
+    <label>Show Edge Labels: 
+      <input type="checkbox" id="edgeLabelShowInput">
+    </label>
+
+    <h4>Link Line Style</h4>
+    <label>Line Color:
+      <select id="lineColorInput">
+        <option value="gradient">gradient</option>
+        <option value="source">source</option>
+        <option value="target">target</option>
+      </select>
+    </label>
+    <label>Line Opacity (0-1): 
+      <input type="number" id="lineOpacityInput" value="0.2" min="0" max="1" step="0.1">
+    </label>
+
+    <h4>Save/Load Settings</h4>
+    <button id="saveBtn" style="background: #28a745; margin-right: 5px;">Save Parameters</button>
+    <button id="loadBtn" style="background: #17a2b8;">Load Parameters</button>
+    <small style="display: block; margin-top: 5px; color: #666;">Parameters saved to 'Parameters' column in Link table (row 1)</small>
+
+    <h4>Export Chart</h4>
+    <label>Renderer:
+      <select id="rendererInput">
+        <option value="canvas">PNG (canvas)</option>
+        <option value="svg">SVG</option>
+      </select>
+    </label>
+    <label>Export Format:
+      <select id="exportFormatInput">
+        <option value="png">PNG</option>
+        <option value="svg">SVG</option>
+      </select>
+    </label>
+    <button id="exportBtn" style="background: #6c757d;">Export as Image</button>
+    <small style="display: block; margin-top: 5px; color: #666;">Note: SVG export requires SVG renderer</small>
+
+    <button id="updateBtn">Update Chart</button>
+
+    <div class="status" id="status">
+      Waiting for data...
+    </div>
+  </div>
+
+  <!-- Right Panel: Chart -->
+  <div id="chart"></div>
+  
+  <script>
+    let chart;
+    let linkTableData = [];
+    let nameTableData = [];
+    
+    // Initialize Grist
+    grist.ready({
+      requiredAccess: 'full',
+      columns: []
+    });
+
+    // Update status message
+    function updateStatus(message) {
+      document.getElementById('status').textContent = message;
+    }
+
+    // Listen for records from the Link table (the table this widget is attached to)
+    grist.onRecords(records => {
+      linkTableData = records;
+      updateStatus(`Link table: ${records.length} records loaded`);
+      fetchNameTable();
+    });
+
+    // Fetch data from the Name table
+    async function fetchNameTable() {
+      try {
+        // Fetch all records from the Name table
+//// <-- Changer le nom --> ////
+        const nameRecords = await grist.docApi.fetchTable('Name');
+        
+        console.log('Name table raw data:', nameRecords);
+        
+        // The fetchTable returns an object with column arrays, convert to array of records
+        if (nameRecords && nameRecords.id && nameRecords.id.length > 0) {
+          const numRecords = nameRecords.id.length;
+          nameTableData = [];
+          
+          for (let i = 0; i < numRecords; i++) {
+            const record = { id: nameRecords.id[i] };
+            for (let colName in nameRecords) {
+              if (colName !== 'id') {
+                record[colName] = nameRecords[colName][i];
+              }
+            }
+            nameTableData.push(record);
+          }
+          
+          console.log('Processed Name table data:', nameTableData);
+          updateStatus(`Link: ${linkTableData.length} records, Name: ${nameTableData.length} records`);
+          renderChart();
+        } else {
+          updateStatus('Error: Name table has no data');
+          console.log('Name table structure:', nameRecords);
+        }
+      } catch (error) {
+        updateStatus('Error fetching Name table: ' + error.message);
+        console.error('Error fetching Name table:', error);
+      }
+    }
+
+    function renderChart() {
+      const title = document.getElementById('titleInput').value;
+      const sourceCol = document.getElementById('sourceColumn').value;
+      const targetCol = document.getElementById('targetColumn').value;
+      const valueCol = document.getElementById('valueColumn').value;
+      const nameCol = document.getElementById('nameColumn').value;
+      const colorCol = document.getElementById('colorColumn').value;
+      const orient = document.getElementById('orientInput').value;
+      const chartWidth = document.getElementById('chartWidthInput').value;
+      const chartHeight = document.getElementById('chartHeightInput').value;
+      const nodeWidth = parseInt(document.getElementById('nodeWidthInput').value, 10);
+      const nodeGap = parseInt(document.getElementById('nodeGapInput').value, 10);
+      const layoutIterations = parseInt(document.getElementById('layoutIterationsInput').value, 10);
+      const theme = document.getElementById('themeInput').value;
+      const overrideColors = document.getElementById('overrideColorsInput').checked;
+      const renderer = document.getElementById('rendererInput').value;
+      
+      // Node label settings
+      const labelShow = document.getElementById('labelShowInput').checked;
+      const labelPosition = document.getElementById('labelPositionInput').value;
+      const labelRotate = parseInt(document.getElementById('labelRotateInput').value, 10);
+      const labelFontSize = parseInt(document.getElementById('labelFontSizeInput').value, 10);
+      
+      // Edge label settings
+      const edgeLabelShow = document.getElementById('edgeLabelShowInput').checked;
+      
+      // Link line style settings
+      const lineColor = document.getElementById('lineColorInput').value;
+      const lineOpacity = parseFloat(document.getElementById('lineOpacityInput').value);
+
+      // Build nodes data from Name table (remove duplicates)
+      const uniqueNames = new Set();
+      const nodes = nameTableData
+        .map(r => {
+          const node = {
+            name: r[nameCol]
+          };
+          
+          // Add custom color if override is enabled and color exists
+          if (overrideColors && r[colorCol]) {
+            node.itemStyle = {
+              color: r[colorCol]
+            };
+          }
+          
+          return node;
+        })
+        .filter(d => {
+          if (d.name !== undefined && d.name !== null && d.name !== '' && !uniqueNames.has(d.name)) {
+            uniqueNames.add(d.name);
+            return true;
+          }
+          return false;
+        });
+
+      console.log('Nodes:', nodes);
+      console.log('Duplicate names removed:', nameTableData.length - nodes.length);
+
+      // Build links data from Link table
+      const links = linkTableData
+        .map(r => ({
+          source: String(r[sourceCol]),
+          target: String(r[targetCol]),
+          value: parseFloat(r[valueCol]) || 0
+        }))
+        .filter(d => 
+          d.source !== undefined && d.source !== 'undefined' && d.source !== '' &&
+          d.target !== undefined && d.target !== 'undefined' && d.target !== '' &&
+          d.value > 0
+        );
+
+      console.log('Links:', links);
+
+      if (nodes.length === 0) {
+        updateStatus('Error: No valid nodes found');
+        return;
+      }
+
+      if (links.length === 0) {
+        updateStatus('Error: No valid links found');
+        return;
+      }
+
+      const option = {
+        title: {
+          text: title,
+          left: 'center',
+          textStyle: {
+            fontSize: 18,
+            fontWeight: 'bold'
+          }
+        },
+        tooltip: {
+          trigger: 'item',
+          triggerOn: 'mousemove',
+          formatter: function(params) {
+            if (params.dataType === 'edge') {
+              const value = parseFloat(params.data.value);
+              return params.data.source + ' → ' + params.data.target + '<br/>Value: €' + value.toLocaleString('fr-FR');
+            } else {
+              return params.data.name || params.name;
+            }
+          }
+        },
+        toolbox: {
+          show: false,
+          feature: {
+            saveAsImage: {
+              type: 'png',
+              name: 'sankey_chart',
+              backgroundColor: '#fff',
+              pixelRatio: 2
+            }
+          }
+        },
+        series: [{
+          type: 'sankey',
+          layout: 'none',
+          emphasis: {
+            focus: 'adjacency'
+          },
+          width: chartWidth,
+          height: chartHeight,
+          orient: orient,
+          nodeWidth: nodeWidth,
+          nodeGap: nodeGap,
+          layoutIterations: layoutIterations,
+          data: nodes,
+          links: links,
+          lineStyle: {
+            color: lineColor,
+            opacity: lineOpacity,
+            curveness: 0.5
+          },
+          label: {
+            show: labelShow,
+            position: labelPosition,
+            rotate: labelRotate,
+            fontSize: labelFontSize,
+            formatter: '{b}'
+          },
+          edgeLabel: {
+            show: edgeLabelShow,
+            fontSize: 10,
+            formatter: function(params) {
+              return '€' + params.value.toLocaleString('fr-FR');
+            }
+          }
+        }]
+      };
+
+      if (chart) chart.dispose();
+      chart = echarts.init(document.getElementById('chart'), theme || null, { renderer: renderer });
+      chart.setOption(option);
+      
+      updateStatus(`Chart rendered with ${nodes.length} nodes and ${links.length} links (${renderer} renderer)`);
+    }
+
+    document.getElementById('updateBtn').addEventListener('click', renderChart);
+
+    // Export chart as image
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      if (!chart) {
+        updateStatus('Error: No chart to export');
+        return;
+      }
+
+      const exportFormat = document.getElementById('exportFormatInput').value;
+      const renderer = document.getElementById('rendererInput').value;
+
+      // Check if SVG export is requested with canvas renderer
+      if (exportFormat === 'svg' && renderer === 'canvas') {
+        updateStatus('Error: SVG export requires SVG renderer. Please change renderer and update chart.');
+        return;
+      }
+
+      try {
+        // Use ECharts' getDataURL for export
+        const url = chart.getDataURL({
+          type: exportFormat,
+          pixelRatio: 2,
+          backgroundColor: '#fff'
+        });
+
+        // Create download link
+        const link = document.createElement('a');
+        link.download = `sankey_chart.${exportFormat}`;
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        updateStatus(`Chart exported as ${exportFormat.toUpperCase()}`);
+      } catch (error) {
+        updateStatus('Error exporting chart: ' + error.message);
+        console.error('Error exporting chart:', error);
+      }
+    });
+
+    // Save parameters to the Parameters column in Link table (first row)
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      try {
+        const params = {
+          titleInput: document.getElementById('titleInput').value,
+          themeInput: document.getElementById('themeInput').value,
+          overrideColorsInput: document.getElementById('overrideColorsInput').checked,
+          sourceColumn: document.getElementById('sourceColumn').value,
+          targetColumn: document.getElementById('targetColumn').value,
+          valueColumn: document.getElementById('valueColumn').value,
+          nameColumn: document.getElementById('nameColumn').value,
+          colorColumn: document.getElementById('colorColumn').value,
+          orientInput: document.getElementById('orientInput').value,
+          chartWidthInput: document.getElementById('chartWidthInput').value,
+          chartHeightInput: document.getElementById('chartHeightInput').value,
+          nodeWidthInput: document.getElementById('nodeWidthInput').value,
+          nodeGapInput: document.getElementById('nodeGapInput').value,
+          layoutIterationsInput: document.getElementById('layoutIterationsInput').value,
+          rendererInput: document.getElementById('rendererInput').value,
+          labelShowInput: document.getElementById('labelShowInput').checked,
+          labelPositionInput: document.getElementById('labelPositionInput').value,
+          labelRotateInput: document.getElementById('labelRotateInput').value,
+          labelFontSizeInput: document.getElementById('labelFontSizeInput').value,
+          edgeLabelShowInput: document.getElementById('edgeLabelShowInput').checked,
+          lineColorInput: document.getElementById('lineColorInput').value,
+          lineOpacityInput: document.getElementById('lineOpacityInput').value
+        };
+        
+        // Save to first row of Link table
+        if (linkTableData.length > 0) {
+          const firstRowId = linkTableData[0].id;
+          await grist.docApi.applyUserActions([
+//// <-- Changer le nom --> ////
+            ['UpdateRecord', 'Link', firstRowId, { Parameters: JSON.stringify(params) }]
+          ]);
+          updateStatus('Parameters saved successfully!');
+        } else {
+          updateStatus('Error: No rows in Link table to save parameters');
+        }
+      } catch (error) {
+        updateStatus('Error saving parameters: ' + error.message);
+        console.error('Error saving parameters:', error);
+      }
+    });
+
+    // Load parameters from the Parameters column in Link table (first row)
+    document.getElementById('loadBtn').addEventListener('click', async () => {
+      try {
+        // Fetch fresh data from Link table to ensure we have the Parameters column
+        const linkRecords = await grist.docApi.fetchTable('Link');
+        
+        console.log('Link table raw data:', linkRecords);
+        
+        if (linkRecords && linkRecords.id && linkRecords.id.length > 0 && linkRecords.Parameters && linkRecords.Parameters[0]) {
+          const paramsString = linkRecords.Parameters[0];
+          console.log('Parameters string:', paramsString);
+          
+          const params = JSON.parse(paramsString);
+          
+          // Restore all parameters
+          document.getElementById('titleInput').value = params.titleInput || 'Sankey Diagram';
+          document.getElementById('themeInput').value = params.themeInput || '';
+          document.getElementById('overrideColorsInput').checked = params.overrideColorsInput || false;
+          document.getElementById('sourceColumn').value = params.sourceColumn || 'Source';
+          document.getElementById('targetColumn').value = params.targetColumn || 'Target';
+          document.getElementById('valueColumn').value = params.valueColumn || 'Value';
+          document.getElementById('nameColumn').value = params.nameColumn || 'Name';
+          document.getElementById('colorColumn').value = params.colorColumn || 'Color';
+          document.getElementById('orientInput').value = params.orientInput || 'vertical';
+          document.getElementById('chartWidthInput').value = params.chartWidthInput || '80%';
+          document.getElementById('chartHeightInput').value = params.chartHeightInput || '80%';
+          document.getElementById('nodeWidthInput').value = params.nodeWidthInput || '20';
+          document.getElementById('nodeGapInput').value = params.nodeGapInput || '8';
+          document.getElementById('layoutIterationsInput').value = params.layoutIterationsInput || '32';
+          document.getElementById('rendererInput').value = params.rendererInput || 'canvas';
+          document.getElementById('labelShowInput').checked = params.labelShowInput !== undefined ? params.labelShowInput : true;
+          document.getElementById('labelPositionInput').value = params.labelPositionInput || 'right';
+          document.getElementById('labelRotateInput').value = params.labelRotateInput || '0';
+          document.getElementById('labelFontSizeInput').value = params.labelFontSizeInput || '12';
+          document.getElementById('edgeLabelShowInput').checked = params.edgeLabelShowInput || false;
+          document.getElementById('lineColorInput').value = params.lineColorInput || 'gradient';
+          document.getElementById('lineOpacityInput').value = params.lineOpacityInput || '0.2';
+          
+          updateStatus('Parameters loaded successfully!');
+          renderChart();
+        } else {
+          updateStatus('No saved parameters found in Link table');
+          console.log('Parameters column data:', linkRecords.Parameters);
+        }
+      } catch (error) {
+        updateStatus('Error loading parameters: ' + error.message);
+        console.error('Error loading parameters:', error);
+      }
+    });
+
+    // Auto-resize chart when window size changes
+    window.addEventListener('resize', () => {
+      if (chart) {
+        chart.resize();
+      }
+    });
+  </script>
+  
+</body>
+</html>
